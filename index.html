@@ -365,11 +365,6 @@
         </div>
         
         <div id="cast-container">
-            <div class="cast-header">
-                <button class="back-button" id="back-button">← Back to Search</button>
-                <h2>Cast Members</h2>
-            </div>
-            
             <div class="movie-details" id="movie-details"></div>
             
             <div class="cast-grid" id="cast-grid"></div>
@@ -391,7 +386,6 @@
         const searchResults = document.getElementById('search-results');
         const movieResults = document.getElementById('movie-results');
         const castContainer = document.getElementById('cast-container');
-        const backButton = document.getElementById('back-button');
         const movieDetails = document.getElementById('movie-details');
         const castGrid = document.getElementById('cast-grid');
         const loader = document.getElementById('loader');
@@ -403,10 +397,6 @@
                 performSearch();
             }
         });
-        backButton.addEventListener('click', () => {
-            castContainer.style.display = 'none';
-            searchResults.style.display = 'block';
-        });
         
         // Search for movies
         async function performSearch() {
@@ -414,6 +404,10 @@
             if (!query) return;
             
             showLoader();
+            
+            // Reset the view to search results
+            castContainer.style.display = 'none';
+            searchResults.style.display = 'block';
             
             try {
                 const response = await fetch(`${BASE_URL}/search/movie?query=${encodeURIComponent(query)}`, {
@@ -620,6 +614,31 @@
                 return;
             }
             
+            // Filter out talk shows and similar content
+            const filteredCredits = allCredits.filter(credit => {
+                // Skip talk shows, late night shows, award shows, etc.
+                const title = credit.title || credit.name || '';
+                const talkShowKeywords = [
+                    'conan', 'late night', 'late show', 'tonight show', 'jimmy kimmel', 
+                    'jimmy fallon', 'seth meyers', 'james corden', 'ellen', 'graham norton',
+                    'colbert', 'daily show', 'award', 'oscar', 'emmy', 'golden globe',
+                    'talk show', 'interview', 'behind the scenes', 'making of', 'live with'
+                ];
+                
+                // Check if it's a talk show by title
+                if (talkShowKeywords.some(keyword => 
+                    title.toLowerCase().includes(keyword))) {
+                    return false;
+                }
+                
+                // Check by genre if available
+                if (credit.genre_ids && credit.genre_ids.includes(10767)) { // Talk show genre ID
+                    return false;
+                }
+                
+                return true;
+            });
+            
             // Create a scoring system for credits
             // Prioritize:
             // 1. Credits with higher vote counts (more verified by users)
@@ -627,7 +646,7 @@
             // 3. Lead roles over supporting roles (check cast position/order)
             // 4. Recent works over very old ones (but still consider classics)
             
-            const scoredCredits = allCredits
+            const scoredCredits = filteredCredits
                 .filter(credit => credit.poster_path) // Only include items with posters
                 .map(credit => {
                     let score = credit.vote_count * 0.5; // Base on number of votes
@@ -661,6 +680,11 @@
                         if (credit.vote_average && credit.vote_average > 7.5) {
                             score += 400; // Classic with high rating
                         }
+                    }
+                    
+                    // Extra penalty for documentaries where actor might be "Self"
+                    if (credit.genre_ids && credit.genre_ids.includes(99)) { // Documentary genre ID
+                        score -= 300;
                     }
                     
                     return { ...credit, score };
