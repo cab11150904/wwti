@@ -85,9 +85,13 @@
         }
         
         .content-results {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-            gap: 20px;
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: space-between;
+            gap: 15px;
+            max-height: calc(100vh - 350px);
+            overflow-y: auto;
+            padding-right: 10px;
         }
         
         .content-card {
@@ -97,6 +101,8 @@
             box-shadow: var(--card-shadow);
             transition: transform 0.3s;
             cursor: pointer;
+            width: calc(33.333% - 10px);
+            margin-bottom: 15px;
         }
         
         .content-card:hover {
@@ -341,6 +347,16 @@
             .cast-grid {
                 grid-template-columns: repeat(auto-fill, minmax(100%, 1fr));
             }
+            
+            .content-card {
+                width: calc(50% - 10px);
+            }
+        }
+        
+        @media (max-width: 480px) {
+            .content-card {
+                width: 100%;
+            }
         }
         
         .placeholder-image {
@@ -475,6 +491,9 @@
                 return;
             }
             
+            // Calculate how many items to display to show 3 in the first row
+            const itemsPerRow = window.innerWidth <= 480 ? 1 : (window.innerWidth <= 768 ? 2 : 3);
+            
             items.slice(0, 12).forEach(item => {
                 const isMovie = item.media_type === 'movie';
                 const releaseDate = item.release_date 
@@ -506,6 +525,18 @@
                 `;
                 
                 contentResults.appendChild(contentCard);
+            });
+            
+            // Make sure the layout adjusts properly
+            window.addEventListener('resize', () => {
+                const cards = document.querySelectorAll('.content-card');
+                const itemsPerRow = window.innerWidth <= 480 ? 1 : (window.innerWidth <= 768 ? 2 : 3);
+                
+                cards.forEach((card, index) => {
+                    if (index < itemsPerRow) {
+                        card.style.marginTop = '0';
+                    }
+                });
             });
         }
         
