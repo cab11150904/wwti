@@ -53,7 +53,7 @@
             max-width: 600px;
         }
         
-        #content-search {
+        #search-input {
             flex-grow: 1;
             padding: 12px 16px;
             font-size: 1rem;
@@ -149,7 +149,7 @@
             background-color: #4267B2;
         }
         
-        #cast-container {
+        #details-container {
             display: none;
         }
         
@@ -430,7 +430,7 @@
     <div class="container">
         <div class="search-container">
             <div class="search-box">
-                <input type="text" id="content-search" placeholder="Search for a movie or TV show...">
+                <input type="text" id="search-input" placeholder="Search for a movie or TV show...">
                 <button class="search-button" id="search-button">Search</button>
             </div>
         </div>
@@ -445,7 +445,7 @@
             <p>Loading...</p>
         </div>
         
-        <div id="cast-container">
+        <div id="details-container">
             <div class="content-details" id="content-details"></div>
             <h2>Cast Members</h2>
             <div class="cast-grid" id="cast-grid"></div>
@@ -469,11 +469,11 @@
         const IMAGE_BASE_URL = 'https://image.tmdb.org/t/p/';
         
         // DOM Elements
-        const searchInput = document.getElementById('content-search');
+        const searchInput = document.getElementById('search-input');
         const searchButton = document.getElementById('search-button');
         const searchResults = document.getElementById('search-results');
         const contentResults = document.getElementById('content-results');
-        const castContainer = document.getElementById('cast-container');
+        const detailsContainer = document.getElementById('details-container');
         const contentDetails = document.getElementById('content-details');
         const castGrid = document.getElementById('cast-grid');
         const recommendationsGrid = document.getElementById('recommendations-grid');
@@ -495,7 +495,7 @@
             showLoader();
             
             // Reset the view to search results
-            castContainer.style.display = 'none';
+            detailsContainer.style.display = 'none';
             searchResults.style.display = 'block';
             
             try {
@@ -563,7 +563,7 @@
                 const contentCard = document.createElement('div');
                 contentCard.className = 'content-card';
                 contentCard.addEventListener('click', () => {
-                    loadContentCast(item.id, item, isMovie ? 'movie' : 'tv');
+                    loadContentDetails(item.id, item, isMovie ? 'movie' : 'tv');
                 });
                 
                 let posterHtml;
@@ -600,8 +600,8 @@
             });
         }
         
-        // Load cast for movie or TV show
-        async function loadContentCast(contentId, contentData, mediaType) {
+        // Load details for movie or TV show
+        async function loadContentDetails(contentId, contentData, mediaType) {
             showLoader();
             
             try {
@@ -664,14 +664,14 @@
                 displayCastMembers(creditsData.cast);
                 displayRecommendations(recommendationsData.results, mediaType);
                 
-                // Switch to cast view
+                // Switch to details view
                 searchResults.style.display = 'none';
-                castContainer.style.display = 'block';
+                detailsContainer.style.display = 'block';
                 
                 // Scroll to top
                 window.scrollTo(0, 0);
             } catch (error) {
-                console.error(`Error loading ${mediaType} cast:`, error);
+                console.error(`Error loading ${mediaType} details:`, error);
                 alert(`Failed to load information. Please try again.`);
             } finally {
                 hideLoader();
@@ -716,8 +716,13 @@
         async function displayCastMembers(cast) {
             castGrid.innerHTML = '';
             
+            if (!cast || cast.length === 0) {
+                castGrid.innerHTML = '<p>No cast information available</p>';
+                return;
+            }
+            
             // Sort by order and take top 10
-            const mainCast = cast.sort((a, b) => a.order - b.order).slice(0, 10);
+            const mainCast = cast.slice(0, 10);
             
             for (const actor of mainCast) {
                 // Create cast member card
@@ -757,17 +762,7 @@
         // Load actor's known for credits
         async function loadActorCredits(actorId) {
             try {
-                // First get the actor's profile to find their official "known for" works
-                const profileResponse = await fetch(`${BASE_URL}/person/${actorId}?append_to_response=movie_credits,tv_credits`, {
-                    headers: {
-                        'Authorization': `Bearer ${API_KEY}`,
-                        'Content-Type': 'application/json'
-                    }
-                });
-                
-                const profileData = await profileResponse.json();
-                
-                // Also get combined credits for backup and verification
+                // Get combined credits
                 const creditsResponse = await fetch(`${BASE_URL}/person/${actorId}/combined_credits`, {
                     headers: {
                         'Authorization': `Bearer ${API_KEY}`,
@@ -777,8 +772,7 @@
                 
                 const creditsData = await creditsResponse.json();
                 
-                // Merge and verify the credits
-                displayKnownForCredits(actorId, profileData, creditsData.cast);
+                displayKnownForCredits(actorId, creditsData.cast);
             } catch (error) {
                 console.error(`Error loading credits for actor ${actorId}:`, error);
                 const knownForElement = document.getElementById(`known-for-${actorId}`);
@@ -789,7 +783,7 @@
         }
         
         // Display known for credits
-        function displayKnownForCredits(actorId, profileData, allCredits) {
+        function displayKnownForCredits(actorId, allCredits) {
             const knownForElement = document.getElementById(`known-for-${actorId}`);
             
             if (!knownForElement) return;
@@ -821,13 +815,6 @@
                 // Check if it's an excluded show by title
                 if (excludedShowKeywords.some(keyword => 
                     title.toLowerCase().includes(keyword))) {
-                    return false;
-                }
-                
-                // Check by genre if available - exclude talk shows, reality TV, and game shows
-                const excludedGenreIds = [10767, 10764]; // Talk show and reality TV genre IDs
-                if (credit.genre_ids && 
-                    credit.genre_ids.some(id => excludedGenreIds.includes(id))) {
                     return false;
                 }
                 
@@ -866,3 +853,20 @@
                         score += 200; // Recent is good
                     } else if (releaseYear < 1980) {
                         // Potential classics get a boost based on vote average (quality)
+                        if (credit.vote_average && credit.vote_average > 7.5) {
+                            score += 400; // Classic with high rating
+                        }
+                    }
+                    
+                    // Specific penalty for "Running Man"
+                    if ((credit.title && credit.title.toLowerCase().includes('running man')) || 
+                        (credit.name && credit.name.toLowerCase().includes('running man'))) {
+                        score -= 5000;
+                    }
+                    
+                    return { ...credit, score };
+                })
+                .sort((a, b) => b.score - a.score)
+                .slice(0, 8);
+            
+            if (scoredCredits.
