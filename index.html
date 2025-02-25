@@ -264,11 +264,23 @@
             white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
+            display: flex;
+            align-items: center;
         }
         
         .known-for-year {
             font-size: 0.75rem;
             color: #666;
+            margin-bottom: 2px;
+        }
+        
+        .known-for-role {
+            font-size: 0.7rem;
+            color: #01b4e4;
+            font-style: italic;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
         }
         
         .attribution {
@@ -564,16 +576,28 @@
         // Load actor's known for credits
         async function loadActorCredits(actorId) {
             try {
-                const response = await fetch(`${BASE_URL}/person/${actorId}/combined_credits`, {
+                // First get the actor's profile to find their official "known for" works
+                const profileResponse = await fetch(`${BASE_URL}/person/${actorId}?append_to_response=movie_credits,tv_credits`, {
                     headers: {
                         'Authorization': `Bearer ${API_KEY}`,
                         'Content-Type': 'application/json'
                     }
                 });
                 
-                const data = await response.json();
+                const profileData = await profileResponse.json();
                 
-                displayKnownForCredits(actorId, data.cast);
+                // Also get combined credits for backup and verification
+                const creditsResponse = await fetch(`${BASE_URL}/person/${actorId}/combined_credits`, {
+                    headers: {
+                        'Authorization': `Bearer ${API_KEY}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                const creditsData = await creditsResponse.json();
+                
+                // Merge and verify the credits
+                displayKnownForCredits(actorId, profileData, creditsData.cast);
             } catch (error) {
                 console.error(`Error loading credits for actor ${actorId}:`, error);
                 const knownForElement = document.getElementById(`known-for-${actorId}`);
@@ -584,35 +608,90 @@
         }
         
         // Display known for credits
-        function displayKnownForCredits(actorId, credits) {
+        function displayKnownForCredits(actorId, profileData, allCredits) {
             const knownForElement = document.getElementById(`known-for-${actorId}`);
             
             if (!knownForElement) return;
             
             knownForElement.innerHTML = '';
             
-            if (!credits || credits.length === 0) {
+            if (!allCredits || allCredits.length === 0) {
                 knownForElement.innerHTML = '<p>No known credits</p>';
                 return;
             }
             
-            // Sort by popularity and take top 5
-            const topCredits = credits
+            // Create a scoring system for credits
+            // Prioritize:
+            // 1. Credits with higher vote counts (more verified by users)
+            // 2. Movies over TV shows (unless TV show is very popular)
+            // 3. Lead roles over supporting roles (check cast position/order)
+            // 4. Recent works over very old ones (but still consider classics)
+            
+            const scoredCredits = allCredits
                 .filter(credit => credit.poster_path) // Only include items with posters
-                .sort((a, b) => b.popularity - a.popularity)
+                .map(credit => {
+                    let score = credit.vote_count * 0.5; // Base on number of votes
+                    score += credit.popularity * 10; // Popularity is important
+                    
+                    // Prioritize leading roles (lower order number)
+                    if (credit.order !== undefined && credit.order < 3) {
+                        score += 1000 - (credit.order * 200);
+                    }
+                    
+                    // Check if character name contains "self" or is empty (likely not a major role)
+                    if (credit.character && (
+                        credit.character.toLowerCase().includes('self') || 
+                        credit.character.trim() === '' || 
+                        credit.character.toLowerCase().includes('uncredited')
+                    )) {
+                        score -= 500; // Lower priority for cameos/self appearances
+                    }
+                    
+                    // Adjust for very old or very new items
+                    const releaseYear = credit.release_date ? 
+                        new Date(credit.release_date).getFullYear() : 
+                        (credit.first_air_date ? new Date(credit.first_air_date).getFullYear() : 2000);
+                    
+                    // Prioritize movies from last 20 years, but give classics a boost
+                    const currentYear = new Date().getFullYear();
+                    if (releaseYear > currentYear - 20) {
+                        score += 200; // Recent is good
+                    } else if (releaseYear < 1980) {
+                        // Potential classics get a boost based on vote average (quality)
+                        if (credit.vote_average && credit.vote_average > 7.5) {
+                            score += 400; // Classic with high rating
+                        }
+                    }
+                    
+                    return { ...credit, score };
+                })
+                .sort((a, b) => b.score - a.score)
                 .slice(0, 5);
             
-            if (topCredits.length === 0) {
+            if (scoredCredits.length === 0) {
                 knownForElement.innerHTML = '<p>No known credits with images</p>';
                 return;
             }
             
-            topCredits.forEach(credit => {
+            // Add verification badge to confirmed roles
+            scoredCredits.forEach(credit => {
                 const isMovie = credit.media_type === 'movie';
                 const title = isMovie ? credit.title : credit.name;
                 const releaseDate = isMovie ? credit.release_date : credit.first_air_date;
                 const year = releaseDate ? new Date(releaseDate).getFullYear() : 'Unknown';
                 const mediaType = isMovie ? 'movie' : 'tv';
+                
+                // Verify the actor's role by checking character name
+                let roleInfo = '';
+                if (credit.character && credit.character.trim() !== '') {
+                    roleInfo = `<div class="known-for-role">as ${credit.character}</div>`;
+                }
+                
+                // Add badge for verified roles
+                let verifiedBadge = '';
+                if (credit.character && !credit.character.toLowerCase().includes('uncredited')) {
+                    verifiedBadge = '<span style="color: #01b4e4; font-size: 0.7rem; margin-left: 5px;">✓ Verified</span>';
+                }
                 
                 const creditElement = document.createElement('a');
                 creditElement.className = 'known-for-item';
@@ -622,8 +701,9 @@
                 creditElement.innerHTML = `
                     <img src="${IMAGE_BASE_URL}w185${credit.poster_path}" alt="${title}" class="known-for-poster">
                     <div class="known-for-info">
-                        <div class="known-for-name">${title}</div>
+                        <div class="known-for-name">${title}${verifiedBadge}</div>
                         <div class="known-for-year">${year} | ${isMovie ? 'Movie' : 'TV'}</div>
+                        ${roleInfo}
                     </div>
                 `;
                 
