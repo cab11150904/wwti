@@ -80,11 +80,11 @@
             background-color: #018eb6;
         }
         
-        #search-results {
+        #search-results, #related-content {
             margin-bottom: 30px;
         }
         
-        .content-results {
+        .content-results, .related-results {
             display: flex;
             flex-wrap: wrap;
             justify-content: space-between;
@@ -92,6 +92,19 @@
             max-height: calc(100vh - 350px);
             overflow-y: auto;
             padding-right: 10px;
+        }
+        
+        .related-results {
+            max-height: calc(100vh - 350px);
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: space-between;
+            gap: 15px;
+        }
+        
+        .section-divider {
+            border-top: 1px solid #ddd;
+            margin: 40px 0 20px;
         }
         
         .content-card {
@@ -386,6 +399,13 @@
             <div class="content-results" id="content-results"></div>
         </div>
         
+        <!-- New related content section -->
+        <div id="related-content" style="display: none;">
+            <div class="section-divider"></div>
+            <h2>You Might Also Like</h2>
+            <div class="related-results" id="related-results"></div>
+        </div>
+        
         <div class="loader" id="loader">
             <div class="loader-spinner"></div>
             <p>Loading...</p>
@@ -421,6 +441,8 @@
         const contentDetails = document.getElementById('content-details');
         const castGrid = document.getElementById('cast-grid');
         const loader = document.getElementById('loader');
+        const relatedContent = document.getElementById('related-content');
+        const relatedResults = document.getElementById('related-results');
         
         // Event listeners
         searchButton.addEventListener('click', performSearch);
@@ -435,11 +457,14 @@
             const query = searchInput.value.trim();
             if (!query) return;
             
+            console.log(`Performing search for: "${query}"`);
             showLoader();
             
             // Reset the view to search results
             castContainer.style.display = 'none';
             searchResults.style.display = 'block';
+            relatedContent.style.display = 'none';
+            relatedResults.innerHTML = '';
             
             try {
                 // Search for movies
@@ -477,6 +502,12 @@
                 combinedResults.sort((a, b) => b.popularity - a.popularity);
                 
                 displaySearchResults(combinedResults);
+                
+                // If we have results, find related content for the top result
+                if (combinedResults.length > 0) {
+                    const topResult = combinedResults[0];
+                    fetchRelatedContent(topResult.id, topResult.media_type);
+                }
             } catch (error) {
                 console.error('Error searching for content:', error);
                 alert('Failed to search. Please try again.');
@@ -543,6 +574,151 @@
             });
         }
         
+        // New function to fetch related content
+        async function fetchRelatedContent(contentId, mediaType) {
+            console.log(`Fetching related content for ${mediaType} with ID: ${contentId}`);
+            
+            try {
+                // Show loader while fetching
+                showLoader();
+                
+                // Get recommendations for the top result
+                const recommendationsEndpoint = mediaType === 'movie' ? 
+                    `${BASE_URL}/movie/${contentId}/recommendations` : 
+                    `${BASE_URL}/tv/${contentId}/recommendations`;
+                
+                console.log(`Trying recommendations endpoint: ${recommendationsEndpoint}`);
+                
+                const recommendationsResponse = await fetch(recommendationsEndpoint, {
+                    headers: {
+                        'Authorization': `Bearer ${API_KEY}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                const recommendationsData = await recommendationsResponse.json();
+                console.log('Recommendations API response:', recommendationsData);
+                
+                // If no recommendations, try similar content
+                if (!recommendationsData.results || recommendationsData.results.length === 0) {
+                    console.log('No recommendations found, trying similar content');
+                    
+                    const similarEndpoint = mediaType === 'movie' ? 
+                        `${BASE_URL}/movie/${contentId}/similar` : 
+                        `${BASE_URL}/tv/${contentId}/similar`;
+                    
+                    console.log(`Trying similar endpoint: ${similarEndpoint}`);
+                    
+                    const similarResponse = await fetch(similarEndpoint, {
+                        headers: {
+                            'Authorization': `Bearer ${API_KEY}`,
+                            'Content-Type': 'application/json'
+                        }
+                    });
+                    
+                    const similarData = await similarResponse.json();
+                    console.log('Similar API response:', similarData);
+                    
+                    // Only display if we have results
+                    if (similarData.results && similarData.results.length > 0) {
+                        displayRelatedContent(similarData.results, mediaType);
+                    } else {
+                        console.log('No similar content found either');
+                        relatedContent.style.display = 'none';
+                    }
+                } else {
+                    console.log(`Found ${recommendationsData.results.length} recommendations`);
+                    displayRelatedContent(recommendationsData.results, mediaType);
+                }
+            } catch (error) {
+                console.error(`Error loading related content:`, error);
+                relatedContent.style.display = 'none';
+            } finally {
+                hideLoader();
+            }
+        }
+        
+        // Display related content
+        function displayRelatedContent(items, sourceMediaType) {
+            console.log('Displaying related content:', items);
+            
+            if (!items || items.length === 0) {
+                console.log('No items to display');
+                relatedContent.style.display = 'none';
+                return;
+            }
+            
+            relatedResults.innerHTML = '';
+            
+            // Format the items for display
+            const formattedItems = items.map(item => {
+                // For consistency, normalize TV show properties to match movie properties
+                if (sourceMediaType === 'tv' || item.media_type === 'tv') {
+                    return {
+                        ...item,
+                        media_type: 'tv',
+                        title: item.name || item.title || 'Unknown Title',
+                        release_date: item.first_air_date || item.release_date
+                    };
+                }
+                return {
+                    ...item,
+                    media_type: item.media_type || sourceMediaType || 'movie',
+                    title: item.title || 'Unknown Title'
+                };
+            });
+            
+            console.log('Formatted items:', formattedItems);
+            
+            // Filter out items with no poster (improves visual appearance)
+            const itemsWithPosters = formattedItems.filter(item => item.poster_path);
+            
+            if (itemsWithPosters.length === 0) {
+                console.log('No items with posters to display');
+                relatedResults.innerHTML = '<p>No related content with images available</p>';
+                relatedContent.style.display = 'block';
+                return;
+            }
+            
+            // Display up to 6 related items
+            itemsWithPosters.slice(0, 6).forEach(item => {
+                const isMovie = item.media_type === 'movie';
+                const title = item.title || item.name || 'Unknown Title';
+                const releaseDate = item.release_date 
+                    ? new Date(item.release_date).getFullYear() 
+                    : 'Unknown';
+                
+                const contentCard = document.createElement('div');
+                contentCard.className = 'content-card';
+                contentCard.addEventListener('click', () => {
+                    loadContentCast(item.id, item, isMovie ? 'movie' : 'tv');
+                });
+                
+                let posterHtml;
+                if (item.poster_path) {
+                    posterHtml = `<img src="${IMAGE_BASE_URL}w342${item.poster_path}" alt="${title}" class="content-poster">`;
+                } else {
+                    posterHtml = `<div class="content-poster placeholder-image">No Poster Available</div>`;
+                }
+                
+                contentCard.innerHTML = `
+                    ${posterHtml}
+                    <div class="content-info">
+                        <div class="content-title">
+                            ${title}
+                            <span class="content-type type-${isMovie ? 'movie' : 'tv'}">${isMovie ? 'Movie' : 'TV'}</span>
+                        </div>
+                        <div class="content-year">${releaseDate}</div>
+                    </div>
+                `;
+                
+                relatedResults.appendChild(contentCard);
+            });
+            
+            // Show the related content section
+            relatedContent.style.display = 'block';
+        }
+        
         // Load cast for movie or TV show
         async function loadContentCast(contentId, contentData, mediaType) {
             showLoader();
@@ -594,6 +770,7 @@
                 
                 // Switch to cast view
                 searchResults.style.display = 'none';
+                relatedContent.style.display = 'none';
                 castContainer.style.display = 'block';
                 
                 // Scroll to top
