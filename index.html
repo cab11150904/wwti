@@ -614,25 +614,33 @@
                 return;
             }
             
-            // Filter out talk shows and similar content
+            // Filter out talk shows, reality shows, game shows and similar content
             const filteredCredits = allCredits.filter(credit => {
-                // Skip talk shows, late night shows, award shows, etc.
+                // Skip talk shows, late night shows, award shows, reality shows, etc.
                 const title = credit.title || credit.name || '';
-                const talkShowKeywords = [
+                const excludedShowKeywords = [
+                    // Talk shows
                     'conan', 'late night', 'late show', 'tonight show', 'jimmy kimmel', 
                     'jimmy fallon', 'seth meyers', 'james corden', 'ellen', 'graham norton',
                     'colbert', 'daily show', 'award', 'oscar', 'emmy', 'golden globe',
-                    'talk show', 'interview', 'behind the scenes', 'making of', 'live with'
+                    'talk show', 'interview', 'behind the scenes', 'making of', 'live with',
+                    // Reality/Game shows
+                    'running man', 'survivor', 'big brother', 'amazing race', 'voice', 
+                    'got talent', 'masked singer', 'drag race', 'bachelor', 'dancing with',
+                    'american idol', 'real housewives', 'master chef', 'top chef', 'x factor',
+                    'reality', 'game show', 'variety show', 'competition'
                 ];
                 
-                // Check if it's a talk show by title
-                if (talkShowKeywords.some(keyword => 
+                // Check if it's an excluded show by title
+                if (excludedShowKeywords.some(keyword => 
                     title.toLowerCase().includes(keyword))) {
                     return false;
                 }
                 
-                // Check by genre if available
-                if (credit.genre_ids && credit.genre_ids.includes(10767)) { // Talk show genre ID
+                // Check by genre if available - exclude talk shows, reality TV, and game shows
+                const excludedGenreIds = [10767, 10764]; // Talk show and reality TV genre IDs
+                if (credit.genre_ids && 
+                    credit.genre_ids.some(id => excludedGenreIds.includes(id))) {
                     return false;
                 }
                 
@@ -685,6 +693,12 @@
                     // Extra penalty for documentaries where actor might be "Self"
                     if (credit.genre_ids && credit.genre_ids.includes(99)) { // Documentary genre ID
                         score -= 300;
+                    }
+                    
+                    // Specific penalty for "The Running Man" if it somehow gets through the filters
+                    if ((credit.title && credit.title.toLowerCase().includes('running man')) || 
+                        (credit.name && credit.name.toLowerCase().includes('running man'))) {
+                        score -= 5000; // Significant penalty to ensure it doesn't appear
                     }
                     
                     return { ...credit, score };
