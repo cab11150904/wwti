@@ -1,4 +1,54 @@
-<!DOCTYPE html>
+// Load cast for a TV show
+        async function loadTVShowCast(tvId, show) {
+            showLoader();
+            
+            try {
+                // Get TV show details including cast
+                const response = await fetch(`${BASE_URL}/tv/${tvId}/credits`, {
+                    headers: {
+                        'Authorization': `Bearer ${API_KEY}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                const data = await response.json();
+                
+                // Get additional TV show details
+                const tvDetailsResponse = await fetch(`${BASE_URL}/tv/${tvId}`, {
+                    headers: {
+                        'Authorization': `Bearer ${API_KEY}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                const tvDetailsData = await tvDetailsResponse.json();
+                
+                // Format TV show details like movie details for display
+                const formattedDetails = {
+                    ...tvDetailsData,
+                    title: tvDetailsData.name,
+                    release_date: tvDetailsData.first_air_date,
+                    runtime: tvDetailsData.episode_run_time && tvDetailsData.episode_run_time.length > 0 
+                        ? tvDetailsData.episode_run_time[0] 
+                        : null
+                };
+                
+                displayMovieDetails(formattedDetails);
+                displayCastMembers(data.cast);
+                
+                // Switch to cast view
+                searchResults.style.display = 'none';
+                castContainer.style.display = 'block';
+                
+                // Scroll to top
+                window.scrollTo(0, 0);
+            } catch (error) {
+                console.error('Error loading TV show cast:', error);
+                alert('Failed to load cast. Please try again.');
+            } finally {
+                hideLoader();
+            }
+        }<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -343,13 +393,13 @@
 </head>
 <body>
     <header>
-        <h1>Movie Cast Explorer</h1>
+        <h1>Entertainment Cast Explorer</h1>
     </header>
     
     <div class="container">
         <div class="search-container">
             <div class="search-box">
-                <input type="text" id="movie-search" placeholder="Search for a movie...">
+                <input type="text" id="movie-search" placeholder="Search for a movie or TV show...">
                 <button class="search-button" id="search-button">Search</button>
             </div>
         </div>
@@ -398,7 +448,7 @@
             }
         });
         
-        // Search for movies
+        // Search for movies and TV shows
         async function performSearch() {
             const query = searchInput.value.trim();
             if (!query) return;
@@ -410,42 +460,77 @@
             searchResults.style.display = 'block';
             
             try {
-                const response = await fetch(`${BASE_URL}/search/movie?query=${encodeURIComponent(query)}`, {
+                // Search for movies
+                const movieResponse = await fetch(`${BASE_URL}/search/movie?query=${encodeURIComponent(query)}`, {
                     headers: {
                         'Authorization': `Bearer ${API_KEY}`,
                         'Content-Type': 'application/json'
                     }
                 });
                 
-                const data = await response.json();
-                displayMovieResults(data.results);
+                const movieData = await movieResponse.json();
+                
+                // Also search for TV shows
+                const tvResponse = await fetch(`${BASE_URL}/search/tv?query=${encodeURIComponent(query)}`, {
+                    headers: {
+                        'Authorization': `Bearer ${API_KEY}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                const tvData = await tvResponse.json();
+                
+                // Combine and format results
+                const combinedResults = [
+                    ...movieData.results.map(item => ({...item, media_type: 'movie'})),
+                    ...tvData.results.map(item => ({
+                        ...item, 
+                        media_type: 'tv',
+                        title: item.name, // Use 'title' consistently for display
+                        release_date: item.first_air_date // Use release_date consistently for display
+                    }))
+                ];
+                
+                // Sort by popularity
+                combinedResults.sort((a, b) => b.popularity - a.popularity);
+                
+                displayMovieResults(combinedResults);
             } catch (error) {
-                console.error('Error searching for movies:', error);
-                alert('Failed to search for movies. Please try again.');
+                console.error('Error searching for content:', error);
+                alert('Failed to search. Please try again.');
             } finally {
                 hideLoader();
             }
         }
         
         // Display movie search results
-        function displayMovieResults(movies) {
+        function displayMovieResults(items) {
             movieResults.innerHTML = '';
             
-            if (movies.length === 0) {
-                movieResults.innerHTML = '<p>No movies found. Try a different search term.</p>';
+            if (items.length === 0) {
+                movieResults.innerHTML = '<p>No results found. Try a different search term.</p>';
                 return;
             }
             
-            movies.slice(0, 12).forEach(movie => {
-                const releaseDate = movie.release_date ? new Date(movie.release_date).getFullYear() : 'Unknown';
+            items.slice(0, 12).forEach(item => {
+                const isMovie = item.media_type === 'movie';
+                const releaseDate = item.release_date 
+                    ? new Date(item.release_date).getFullYear() 
+                    : 'Unknown';
                 
                 const movieCard = document.createElement('div');
                 movieCard.className = 'movie-card';
-                movieCard.addEventListener('click', () => loadMovieCast(movie.id, movie));
+                movieCard.addEventListener('click', () => {
+                    if (isMovie) {
+                        loadMovieCast(item.id, item);
+                    } else {
+                        loadTVShowCast(item.id, item);
+                    }
+                });
                 
                 let posterHtml;
-                if (movie.poster_path) {
-                    posterHtml = `<img src="${IMAGE_BASE_URL}w342${movie.poster_path}" alt="${movie.title}" class="movie-poster">`;
+                if (item.poster_path) {
+                    posterHtml = `<img src="${IMAGE_BASE_URL}w342${item.poster_path}" alt="${item.title}" class="movie-poster">`;
                 } else {
                     posterHtml = `<div class="movie-poster placeholder-image">No Poster Available</div>`;
                 }
@@ -453,8 +538,8 @@
                 movieCard.innerHTML = `
                     ${posterHtml}
                     <div class="movie-info">
-                        <div class="movie-title">${movie.title}</div>
-                        <div class="movie-year">${releaseDate}</div>
+                        <div class="movie-title">${item.title}</div>
+                        <div class="movie-year">${releaseDate} | ${isMovie ? 'Movie' : 'TV Show'}</div>
                     </div>
                 `;
                 
