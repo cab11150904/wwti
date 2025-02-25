@@ -1,540 +1,643 @@
-import React, { useState, useEffect } from 'react';
-import { Search, Film, User, Loader, X, ExternalLink } from 'lucide-react';
-
-// TMDB API configuration
-const TMDB_ACCESS_TOKEN = 'eyJhbGciOiJIUzI1NiJ9.eyJhdWQiOiI1MjhiYzcxZTI2ODJmYzJmOGI1YjYzNGQ2ZjY3MTYyZSIsIm5iZiI6MTc0MDQ5NjE3My41NTIsInN1YiI6IjY3YmRkZDJkNzYxNzU2OGZjNjVlOWZlNCIsInNjb3BlcyI6WyJhcGlfcmVhZCJdLCJ2ZXJzaW9uIjoxfQ._ZUjD-qC3Duv8FxHAs1Psnzaw_c7e5POR9PhnOo8H8c';
-const TMDB_API_BASE_URL = 'https://api.themoviedb.org/3';
-const TMDB_IMAGE_BASE_URL = 'https://image.tmdb.org/t/p';
-
-const MovieCastExplorer = () => {
-  const [searchQuery, setSearchQuery] = useState('');
-  const [searchResults, setSearchResults] = useState([]);
-  const [selectedMovie, setSelectedMovie] = useState(null);
-  const [movieCast, setMovieCast] = useState([]);
-  const [expandedActors, setExpandedActors] = useState({});
-  const [actorDetails, setActorDetails] = useState({});
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState(null);
-
-  // Fetch data from TMDB API with Authorization header
-  const fetchFromTMDB = async (endpoint, params = {}) => {
-    try {
-      // Create URL with query parameters
-      const queryParams = new URLSearchParams(params);
-      const url = `${TMDB_API_BASE_URL}${endpoint}?${queryParams}`;
-      
-      // Set up headers with the JWT token
-      const headers = {
-        'Authorization': `Bearer ${TMDB_ACCESS_TOKEN}`,
-        'Content-Type': 'application/json'
-      };
-      
-      // Make the request
-      const response = await fetch(url, { headers });
-      
-      if (!response.ok) {
-        let errorMessage = `TMDB API error: ${response.status}`;
-        try {
-          const errorData = await response.json();
-          if (errorData && errorData.status_message) {
-            errorMessage = errorData.status_message;
-          }
-        } catch (e) {
-          // If we can't parse the error JSON, just use the status message
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Movie Cast Explorer</title>
+    <style>
+        :root {
+            --primary-color: #032541;
+            --secondary-color: #01b4e4;
+            --background-color: #f5f5f5;
+            --card-background: #ffffff;
+            --text-color: #333333;
+            --card-shadow: 0 4px 8px rgba(0,0,0,0.1);
         }
         
-        throw new Error(errorMessage);
-      }
-      
-      return await response.json();
-    } catch (error) {
-      console.error('Error fetching from TMDB:', error);
-      setError(`API Error: ${error.message}`);
-      return null;
-    }
-  };
-
-  // Test the API connection on component mount
-  useEffect(() => {
-    const testConnection = async () => {
-      try {
-        const result = await fetchFromTMDB('/configuration');
-        if (result && result.images) {
-          console.log('TMDB API connection successful');
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: var(--background-color);
+            color: var(--text-color);
         }
-      } catch (error) {
-        console.error('TMDB API connection test failed:', error);
-      }
-    };
-    
-    testConnection();
-  }, []);
-
-  // Search for movies
-  const searchMovies = async (query) => {
-    if (!query.trim()) {
-      setSearchResults([]);
-      return;
-    }
-    
-    setIsLoading(true);
-    setError(null);
-    
-    try {
-      const data = await fetchFromTMDB('/search/movie', {
-        query: query,
-        include_adult: false,
-        language: 'en-US',
-        page: 1
-      });
-      
-      if (data && data.results) {
-        setSearchResults(data.results.slice(0, 8)); // Limit results for better UX
-      } else {
-        setSearchResults([]);
-      }
-    } catch (error) {
-      setError(`Search failed: ${error.message}`);
-      setSearchResults([]);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  // Fetch movie details and cast
-  const fetchMovieDetails = async (movieId) => {
-    setIsLoading(true);
-    setError(null);
-    
-    try {
-      // Fetch basic movie details
-      const movieData = await fetchFromTMDB(`/movie/${movieId}`);
-      
-      if (!movieData) throw new Error('Failed to fetch movie details');
-      
-      // Fetch credits (cast and crew)
-      const creditsData = await fetchFromTMDB(`/movie/${movieId}/credits`);
-      
-      if (!creditsData) throw new Error('Failed to fetch movie credits');
-      
-      // Set movie and cast data
-      setSelectedMovie(movieData);
-      
-      // Get main cast (limit to 10 most prominent)
-      const mainCast = creditsData.cast
-        .sort((a, b) => a.order - b.order)
-        .slice(0, 10);
-      
-      setMovieCast(mainCast);
-      
-      // Reset expanded actors and details
-      setExpandedActors({});
-      setActorDetails({});
-    } catch (error) {
-      setError(`Failed to load movie: ${error.message}`);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  // Fetch actor details and known works
-  const fetchActorDetails = async (actorId) => {
-    // Skip if already fetched
-    if (actorDetails[actorId]) return;
-    
-    try {
-      // Get person details
-      const personData = await fetchFromTMDB(`/person/${actorId}`);
-      
-      if (!personData) throw new Error('Failed to fetch person data');
-      
-      // Get combined credits (movies and TV)
-      const creditsData = await fetchFromTMDB(`/person/${actorId}/combined_credits`);
-      
-      if (!creditsData) throw new Error('Failed to fetch person credits');
-      
-      // Process and sort the credits to get notable works
-      const sortedCredits = [...creditsData.cast]
-        .sort((a, b) => b.popularity - a.popularity)
-        .slice(0, 8)
-        .map(work => ({
-          id: work.id,
-          title: work.title || work.name, // movie title or TV show name
-          poster_path: work.poster_path,
-          media_type: work.media_type,
-          year: work.release_date 
-            ? new Date(work.release_date).getFullYear() 
-            : (work.first_air_date 
-                ? new Date(work.first_air_date).getFullYear() 
-                : null)
-        }));
-      
-      // Update actor details state
-      setActorDetails(prev => ({
-        ...prev,
-        [actorId]: {
-          ...personData,
-          known_for: sortedCredits
-        }
-      }));
-    } catch (error) {
-      console.error(`Error fetching actor ${actorId} details:`, error);
-      // We don't set the main error state here to keep the UI usable
-    }
-  };
-
-  // Handle search input changes (with debounce)
-  const handleSearchChange = (e) => {
-    const query = e.target.value;
-    setSearchQuery(query);
-    
-    // Clear existing timeout
-    if (window.searchTimeout) {
-      clearTimeout(window.searchTimeout);
-    }
-    
-    // Set new timeout for debouncing
-    window.searchTimeout = setTimeout(() => {
-      searchMovies(query);
-    }, 500);
-  };
-
-  // Clear search and results
-  const clearSearch = () => {
-    setSearchQuery('');
-    setSearchResults([]);
-  };
-
-  // Handle movie selection
-  const handleMovieSelect = (movie) => {
-    clearSearch();
-    fetchMovieDetails(movie.id);
-  };
-
-  // Toggle actor expanded state
-  const toggleActorExpanded = (actorId) => {
-    // If expanding and we don't have the details, fetch them
-    if (!expandedActors[actorId]) {
-      fetchActorDetails(actorId);
-    }
-    
-    // Toggle the expanded state
-    setExpandedActors(prev => ({
-      ...prev,
-      [actorId]: !prev[actorId]
-    }));
-  };
-
-  // Get image URL with proper fallback
-  const getImageUrl = (path, size = 'w500') => {
-    if (!path) return '/api/placeholder/300/450';
-    return `${TMDB_IMAGE_BASE_URL}/${size}${path}`;
-  };
-  
-  // Handle work selection by media type
-  const handleWorkSelect = (work) => {
-    if (work.media_type === 'movie') {
-      handleMovieSelect({id: work.id});
-    }
-    // For TV shows, we currently don't handle them, but could expand
-  };
-  
-  // External link to TMDB
-  const getTMDBLink = (type, id) => {
-    return `https://www.themoviedb.org/${type}/${id}`;
-  };
-
-  return (
-    <div className="bg-gray-100 min-h-screen p-4">
-      <div className="max-w-4xl mx-auto">
-        <h1 className="text-3xl font-bold text-center mb-6">Movie Cast Explorer</h1>
         
-        {/* Search Bar */}
-        <div className="bg-white rounded-lg shadow-md p-4 mb-6">
-          <div className="relative">
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={handleSearchChange}
-              placeholder="Search for a movie..."
-              className="w-full p-3 pl-10 pr-10 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-            <div className="absolute left-3 top-3 text-gray-400">
-              <Search size={20} />
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        
+        header {
+            background-color: var(--primary-color);
+            color: white;
+            padding: 20px 0;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        
+        h1 {
+            margin: 0;
+            font-size: 2.5rem;
+        }
+        
+        .search-container {
+            display: flex;
+            justify-content: center;
+            margin-bottom: 30px;
+        }
+        
+        .search-box {
+            display: flex;
+            width: 100%;
+            max-width: 600px;
+        }
+        
+        #movie-search {
+            flex-grow: 1;
+            padding: 12px 16px;
+            font-size: 1rem;
+            border: 1px solid #ddd;
+            border-radius: 4px 0 0 4px;
+            outline: none;
+        }
+        
+        button {
+            background-color: var(--secondary-color);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+        
+        .search-button {
+            border-radius: 0 4px 4px 0;
+        }
+        
+        button:hover {
+            background-color: #018eb6;
+        }
+        
+        #search-results {
+            margin-bottom: 30px;
+        }
+        
+        .movie-results {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 20px;
+        }
+        
+        .movie-card {
+            background-color: var(--card-background);
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: var(--card-shadow);
+            transition: transform 0.3s;
+            cursor: pointer;
+        }
+        
+        .movie-card:hover {
+            transform: translateY(-5px);
+        }
+        
+        .movie-poster {
+            width: 100%;
+            height: 300px;
+            object-fit: cover;
+            background-color: #ddd;
+        }
+        
+        .movie-info {
+            padding: 15px;
+        }
+        
+        .movie-title {
+            font-weight: bold;
+            margin-bottom: 5px;
+            font-size: 1rem;
+        }
+        
+        .movie-year {
+            color: #666;
+            font-size: 0.9rem;
+        }
+        
+        #cast-container {
+            display: none;
+        }
+        
+        .cast-header {
+            display: flex;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+        
+        .movie-details {
+            display: flex;
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        
+        .selected-movie-poster {
+            width: 185px;
+            border-radius: 8px;
+            box-shadow: var(--card-shadow);
+        }
+        
+        .selected-movie-info {
+            flex: 1;
+        }
+        
+        .selected-movie-title {
+            font-size: 1.8rem;
+            margin: 0 0 10px 0;
+        }
+        
+        .selected-movie-year {
+            color: #666;
+            font-size: 1.1rem;
+            margin-bottom: 15px;
+        }
+        
+        .selected-movie-overview {
+            line-height: 1.6;
+        }
+        
+        .back-button {
+            margin-right: 15px;
+            background-color: #666;
+            border-radius: 4px;
+        }
+        
+        .cast-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+            gap: 20px;
+        }
+        
+        .cast-member {
+            background-color: var(--card-background);
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: var(--card-shadow);
+        }
+        
+        .cast-header-container {
+            display: flex;
+            gap: 15px;
+            padding: 15px;
+        }
+        
+        .cast-photo {
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            object-fit: cover;
+            background-color: #ddd;
+        }
+        
+        .cast-info {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+        }
+        
+        .cast-name {
+            font-weight: bold;
+            font-size: 1.1rem;
+            margin-bottom: 5px;
+        }
+        
+        .character-name {
+            color: #666;
+            font-size: 0.9rem;
+        }
+        
+        .known-for-container {
+            padding: 15px;
+            border-top: 1px solid #eee;
+            background-color: #f9f9f9;
+        }
+        
+        .known-for-title {
+            font-weight: bold;
+            margin-bottom: 10px;
+            font-size: 0.9rem;
+        }
+        
+        .known-for-list {
+            display: flex;
+            gap: 10px;
+            overflow-x: auto;
+            padding-bottom: 10px;
+        }
+        
+        .known-for-item {
+            min-width: 120px;
+            border-radius: 4px;
+            overflow: hidden;
+            box-shadow: var(--card-shadow);
+            background-color: white;
+            text-decoration: none;
+            color: var(--text-color);
+        }
+        
+        .known-for-poster {
+            width: 100%;
+            height: 180px;
+            object-fit: cover;
+            background-color: #ddd;
+        }
+        
+        .known-for-info {
+            padding: 8px;
+        }
+        
+        .known-for-name {
+            font-size: 0.85rem;
+            font-weight: bold;
+            margin-bottom: 4px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        
+        .known-for-year {
+            font-size: 0.75rem;
+            color: #666;
+        }
+        
+        .attribution {
+            text-align: center;
+            margin-top: 50px;
+            padding: 20px;
+            font-size: 0.85rem;
+            color: #666;
+        }
+        
+        .tmdb-logo {
+            height: 20px;
+            vertical-align: middle;
+            margin-left: 5px;
+        }
+        
+        .loader {
+            display: none;
+            text-align: center;
+            margin: 30px 0;
+        }
+        
+        .loader-spinner {
+            border: 5px solid #f3f3f3;
+            border-top: 5px solid var(--secondary-color);
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 10px;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        @media (max-width: 768px) {
+            .movie-details {
+                flex-direction: column;
+                align-items: center;
+                text-align: center;
+            }
+            
+            .cast-grid {
+                grid-template-columns: repeat(auto-fill, minmax(100%, 1fr));
+            }
+        }
+        
+        .placeholder-image {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background-color: #e1e1e1;
+            color: #888;
+            font-size: 0.8rem;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>Movie Cast Explorer</h1>
+    </header>
+    
+    <div class="container">
+        <div class="search-container">
+            <div class="search-box">
+                <input type="text" id="movie-search" placeholder="Search for a movie...">
+                <button class="search-button" id="search-button">Search</button>
             </div>
-            {searchQuery && (
-              <button 
-                className="absolute right-3 top-3 text-gray-400 hover:text-gray-600"
-                onClick={clearSearch}
-              >
-                <X size={20} />
-              </button>
-            )}
-          </div>
-          
-          {/* Loading indicator */}
-          {isLoading && searchQuery && !selectedMovie && (
-            <div className="flex justify-center items-center py-4">
-              <Loader size={24} className="animate-spin text-blue-500" />
-              <span className="ml-2 text-gray-600">Searching...</span>
-            </div>
-          )}
-          
-          {/* Search results */}
-          {searchResults.length > 0 && !isLoading && (
-            <div className="mt-2 bg-white border border-gray-200 rounded-lg shadow-lg max-h-96 overflow-y-auto">
-              {searchResults.map(movie => (
-                <div 
-                  key={movie.id}
-                  className="p-2 hover:bg-gray-100 cursor-pointer border-b border-gray-100 flex items-center"
-                  onClick={() => handleMovieSelect(movie)}
-                >
-                  <div className="w-12 h-16 bg-gray-200 rounded mr-3 overflow-hidden flex-shrink-0">
-                    {movie.poster_path ? (
-                      <img 
-                        src={getImageUrl(movie.poster_path, 'w92')} 
-                        alt={movie.title} 
-                        className="w-full h-full object-cover" 
-                      />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center bg-gray-300">
-                        <Film size={16} className="text-gray-500" />
-                      </div>
-                    )}
-                  </div>
-                  <div>
-                    <div className="font-medium">{movie.title}</div>
-                    <div className="text-sm text-gray-500">
-                      {movie.release_date ? new Date(movie.release_date).getFullYear() : 'Year unknown'}
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-          
-          {/* No results message */}
-          {searchQuery && searchResults.length === 0 && !isLoading && (
-            <div className="mt-2 p-3 text-center text-gray-500">
-              No movies found matching "{searchQuery}"
-            </div>
-          )}
         </div>
         
-        {/* Error message */}
-        {error && (
-          <div className="bg-red-50 border border-red-200 text-red-700 p-4 rounded-lg mb-6">
-            <p className="font-medium">Error</p>
-            <p>{error}</p>
-          </div>
-        )}
+        <div id="search-results">
+            <h2>Search Results</h2>
+            <div class="movie-results" id="movie-results"></div>
+        </div>
         
-        {/* Selected Movie and Cast */}
-        {selectedMovie && (
-          <div className="bg-white rounded-lg shadow-md overflow-hidden mb-6">
-            {/* Movie Header */}
-            <div className="bg-gray-800 text-white p-4 md:p-6 flex flex-col md:flex-row">
-              <div className="w-32 h-48 bg-gray-700 rounded overflow-hidden flex-shrink-0 mb-4 md:mb-0 md:mr-6">
-                {selectedMovie.poster_path ? (
-                  <img 
-                    src={getImageUrl(selectedMovie.poster_path)} 
-                    alt={selectedMovie.title} 
-                    className="w-full h-full object-cover" 
-                  />
-                ) : (
-                  <div className="w-full h-full flex items-center justify-center">
-                    <Film size={48} className="text-gray-500" />
-                  </div>
-                )}
-              </div>
-              <div className="flex-grow">
-                <div className="flex justify-between items-start">
-                  <h2 className="text-2xl font-bold">{selectedMovie.title}</h2>
-                  <a 
-                    href={getTMDBLink('movie', selectedMovie.id)} 
-                    target="_blank" 
-                    rel="noopener noreferrer"
-                    className="text-blue-400 hover:text-blue-300 flex items-center text-sm ml-2"
-                  >
-                    <ExternalLink size={16} className="mr-1" />
-                    TMDB
-                  </a>
-                </div>
-                <p className="text-gray-400">
-                  {selectedMovie.release_date ? new Date(selectedMovie.release_date).getFullYear() : 'Year unknown'}
-                  {selectedMovie.runtime ? ` • ${Math.floor(selectedMovie.runtime / 60)}h ${selectedMovie.runtime % 60}m` : ''}
-                </p>
-                {selectedMovie.tagline && (
-                  <p className="italic text-gray-300 mt-2">{selectedMovie.tagline}</p>
-                )}
-                <div className="mt-3 text-sm text-gray-300">
-                  {selectedMovie.overview}
-                </div>
-                {selectedMovie.genres && selectedMovie.genres.length > 0 && (
-                  <div className="mt-4 flex flex-wrap gap-2">
-                    {selectedMovie.genres.map(genre => (
-                      <span key={genre.id} className="bg-gray-700 text-gray-200 px-2 py-1 rounded-full text-xs">
-                        {genre.name}
-                      </span>
-                    ))}
-                  </div>
-                )}
-              </div>
+        <div class="loader" id="loader">
+            <div class="loader-spinner"></div>
+            <p>Loading...</p>
+        </div>
+        
+        <div id="cast-container">
+            <div class="cast-header">
+                <button class="back-button" id="back-button">← Back to Search</button>
+                <h2>Cast Members</h2>
             </div>
             
-            {/* Cast List */}
-            <div className="p-4 md:p-6">
-              <h3 className="text-xl font-semibold mb-4">Main Cast</h3>
-              
-              {isLoading && !movieCast.length ? (
-                <div className="flex justify-center items-center py-8">
-                  <Loader size={24} className="animate-spin text-blue-500" />
-                  <span className="ml-2 text-gray-600">Loading cast...</span>
-                </div>
-              ) : movieCast.length === 0 ? (
-                <div className="text-center py-8 text-gray-500">
-                  No cast information available
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  {movieCast.map(actor => (
-                    <div key={actor.id} className="border border-gray-200 rounded-lg overflow-hidden">
-                      {/* Actor Header */}
-                      <div 
-                        className="p-3 bg-gray-50 flex items-center justify-between cursor-pointer hover:bg-gray-100"
-                        onClick={() => toggleActorExpanded(actor.id)}
-                      >
-                        <div className="flex items-center">
-                          <div className="w-12 h-12 rounded-full overflow-hidden mr-3 bg-gray-200 flex-shrink-0">
-                            {actor.profile_path ? (
-                              <img 
-                                src={getImageUrl(actor.profile_path, 'w185')} 
-                                alt={actor.name} 
-                                className="w-full h-full object-cover" 
-                              />
-                            ) : (
-                              <div className="w-full h-full flex items-center justify-center">
-                                <User size={20} className="text-gray-400" />
-                              </div>
-                            )}
-                          </div>
-                          <div>
-                            <div className="flex items-center">
-                              <h4 className="font-medium">{actor.name}</h4>
-                              <a 
-                                href={getTMDBLink('person', actor.id)} 
-                                target="_blank" 
-                                rel="noopener noreferrer"
-                                className="text-blue-500 ml-2"
-                                onClick={e => e.stopPropagation()}
-                              >
-                                <ExternalLink size={14} />
-                              </a>
-                            </div>
-                            {actor.character && (
-                              <div className="text-sm text-gray-500">as {actor.character}</div>
-                            )}
-                          </div>
-                        </div>
-                        <div className="text-blue-500 hover:underline">
-                          {expandedActors[actor.id] ? 'Hide Works' : 'Show Works'}
-                        </div>
-                      </div>
-                      
-                      {/* Actor's Known Works */}
-                      {expandedActors[actor.id] && (
-                        <div className="p-3 border-t border-gray-200">
-                          {!actorDetails[actor.id] ? (
-                            <div className="flex justify-center items-center py-4">
-                              <Loader size={20} className="animate-spin text-blue-500" />
-                              <span className="ml-2 text-gray-600">Loading actor filmography...</span>
-                            </div>
-                          ) : (
-                            <>
-                              <h5 className="font-medium mb-3 text-gray-700">Known For</h5>
-                              
-                              {actorDetails[actor.id].known_for && 
-                              actorDetails[actor.id].known_for.length > 0 ? (
-                                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
-                                  {actorDetails[actor.id].known_for.map(work => (
-                                    <div
-                                      key={`${work.id}-${work.media_type}`}
-                                      className={`bg-gray-50 rounded border border-gray-200 overflow-hidden ${
-                                        work.media_type === 'movie' 
-                                          ? 'cursor-pointer hover:border-blue-300' 
-                                          : ''
-                                      }`}
-                                      onClick={() => work.media_type === 'movie' && handleWorkSelect(work)}
-                                    >
-                                      <div className="h-32 bg-gray-200 relative">
-                                        {work.poster_path ? (
-                                          <img 
-                                            src={getImageUrl(work.poster_path, 'w185')} 
-                                            alt={work.title} 
-                                            className="w-full h-full object-cover" 
-                                          />
-                                        ) : (
-                                          <div className="w-full h-full flex items-center justify-center">
-                                            <Film size={32} className="text-gray-400" />
-                                          </div>
-                                        )}
-                                        <div className="absolute top-1 right-1 bg-black bg-opacity-70 text-white text-xs px-2 py-1 rounded">
-                                          {work.media_type === 'movie' ? 'Movie' : 'TV'}
-                                        </div>
-                                      </div>
-                                      <div className="p-2">
-                                        <div className="flex items-start justify-between">
-                                          <h6 className="font-medium text-sm truncate" title={work.title}>
-                                            {work.title}
-                                          </h6>
-                                          <a 
-                                            href={getTMDBLink(work.media_type, work.id)} 
-                                            target="_blank" 
-                                            rel="noopener noreferrer"
-                                            className="text-blue-500 ml-1 flex-shrink-0"
-                                            onClick={e => e.stopPropagation()}
-                                          >
-                                            <ExternalLink size={12} />
-                                          </a>
-                                        </div>
-                                        <div className="text-xs text-gray-500">
-                                          {work.year || 'Year unknown'}
-                                        </div>
-                                      </div>
-                                    </div>
-                                  ))}
-                                </div>
-                              ) : (
-                                <p className="text-gray-500 text-sm">No known works available</p>
-                              )}
-                            </>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-        )}
+            <div class="movie-details" id="movie-details"></div>
+            
+            <div class="cast-grid" id="cast-grid"></div>
+        </div>
         
-        {/* Initial State */}
-        {!selectedMovie && !searchResults.length && searchQuery === '' && !isLoading && (
-          <div className="text-center py-12 bg-white rounded-lg shadow-md">
-            <div className="text-6xl mb-4">🎬</div>
-            <h2 className="text-xl font-medium text-gray-700 mb-3">Explore Movies and Their Casts</h2>
-            <p className="text-gray-500 max-w-md mx-auto">
-              Search for a movie to see its cast and discover other films and TV shows they've appeared in.
-            </p>
-            <p className="text-xs text-gray-400 mt-6">
-              Powered by The Movie Database (TMDB) API
-            </p>
-          </div>
-        )}
-      </div>
+        <div class="attribution">
+            This product uses the TMDB API but is not endorsed or certified by TMDB.
+            <img src="https://www.themoviedb.org/assets/2/v4/logos/v2/blue_short-8e7b30f73a4020692ccca9c88bafe5dcb6f8a62a4c6bc55cd9ba82bb2cd95f6c.svg" alt="TMDB Logo" class="tmdb-logo">
+        </div>
     </div>
-  );
-};
-
-export default MovieCastExplorer;
+    
+    <script>
+        const API_KEY = 'eyJhbGciOiJIUzI1NiJ9.eyJhdWQiOiI1MjhiYzcxZTI2ODJmYzJmOGI1YjYzNGQ2ZjY3MTYyZSIsIm5iZiI6MTc0MDQ5NjE3My41NTIsInN1YiI6IjY3YmRkZDJkNzYxNzU2OGZjNjVlOWZlNCIsInNjb3BlcyI6WyJhcGlfcmVhZCJdLCJ2ZXJzaW9uIjoxfQ._ZUjD-qC3Duv8FxHAs1Psnzaw_c7e5POR9PhnOo8H8c';
+        const BASE_URL = 'https://api.themoviedb.org/3';
+        const IMAGE_BASE_URL = 'https://image.tmdb.org/t/p/';
+        
+        const searchInput = document.getElementById('movie-search');
+        const searchButton = document.getElementById('search-button');
+        const searchResults = document.getElementById('search-results');
+        const movieResults = document.getElementById('movie-results');
+        const castContainer = document.getElementById('cast-container');
+        const backButton = document.getElementById('back-button');
+        const movieDetails = document.getElementById('movie-details');
+        const castGrid = document.getElementById('cast-grid');
+        const loader = document.getElementById('loader');
+        
+        // Event listeners
+        searchButton.addEventListener('click', performSearch);
+        searchInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                performSearch();
+            }
+        });
+        backButton.addEventListener('click', () => {
+            castContainer.style.display = 'none';
+            searchResults.style.display = 'block';
+        });
+        
+        // Search for movies
+        async function performSearch() {
+            const query = searchInput.value.trim();
+            if (!query) return;
+            
+            showLoader();
+            
+            try {
+                const response = await fetch(`${BASE_URL}/search/movie?query=${encodeURIComponent(query)}`, {
+                    headers: {
+                        'Authorization': `Bearer ${API_KEY}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                const data = await response.json();
+                displayMovieResults(data.results);
+            } catch (error) {
+                console.error('Error searching for movies:', error);
+                alert('Failed to search for movies. Please try again.');
+            } finally {
+                hideLoader();
+            }
+        }
+        
+        // Display movie search results
+        function displayMovieResults(movies) {
+            movieResults.innerHTML = '';
+            
+            if (movies.length === 0) {
+                movieResults.innerHTML = '<p>No movies found. Try a different search term.</p>';
+                return;
+            }
+            
+            movies.slice(0, 12).forEach(movie => {
+                const releaseDate = movie.release_date ? new Date(movie.release_date).getFullYear() : 'Unknown';
+                
+                const movieCard = document.createElement('div');
+                movieCard.className = 'movie-card';
+                movieCard.addEventListener('click', () => loadMovieCast(movie.id, movie));
+                
+                let posterHtml;
+                if (movie.poster_path) {
+                    posterHtml = `<img src="${IMAGE_BASE_URL}w342${movie.poster_path}" alt="${movie.title}" class="movie-poster">`;
+                } else {
+                    posterHtml = `<div class="movie-poster placeholder-image">No Poster Available</div>`;
+                }
+                
+                movieCard.innerHTML = `
+                    ${posterHtml}
+                    <div class="movie-info">
+                        <div class="movie-title">${movie.title}</div>
+                        <div class="movie-year">${releaseDate}</div>
+                    </div>
+                `;
+                
+                movieResults.appendChild(movieCard);
+            });
+        }
+        
+        // Load cast for a selected movie
+        async function loadMovieCast(movieId, movie) {
+            showLoader();
+            
+            try {
+                // Get movie details including cast
+                const response = await fetch(`${BASE_URL}/movie/${movieId}/credits`, {
+                    headers: {
+                        'Authorization': `Bearer ${API_KEY}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                const data = await response.json();
+                
+                // Get additional movie details
+                const movieDetailsResponse = await fetch(`${BASE_URL}/movie/${movieId}`, {
+                    headers: {
+                        'Authorization': `Bearer ${API_KEY}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                const movieDetailsData = await movieDetailsResponse.json();
+                
+                displayMovieDetails(movieDetailsData);
+                displayCastMembers(data.cast);
+                
+                // Switch to cast view
+                searchResults.style.display = 'none';
+                castContainer.style.display = 'block';
+                
+                // Scroll to top
+                window.scrollTo(0, 0);
+            } catch (error) {
+                console.error('Error loading movie cast:', error);
+                alert('Failed to load movie cast. Please try again.');
+            } finally {
+                hideLoader();
+            }
+        }
+        
+        // Display selected movie details
+        function displayMovieDetails(movie) {
+            const releaseDate = movie.release_date ? new Date(movie.release_date).getFullYear() : 'Unknown';
+            
+            let posterHtml;
+            if (movie.poster_path) {
+                posterHtml = `<img src="${IMAGE_BASE_URL}w185${movie.poster_path}" alt="${movie.title}" class="selected-movie-poster">`;
+            } else {
+                posterHtml = `<div class="selected-movie-poster placeholder-image">No Poster Available</div>`;
+            }
+            
+            movieDetails.innerHTML = `
+                ${posterHtml}
+                <div class="selected-movie-info">
+                    <h3 class="selected-movie-title">${movie.title}</h3>
+                    <div class="selected-movie-year">${releaseDate} | ${movie.runtime ? movie.runtime + ' min' : 'Unknown length'}</div>
+                    <p class="selected-movie-overview">${movie.overview || 'No overview available.'}</p>
+                </div>
+            `;
+        }
+        
+        // Display cast members
+        async function displayCastMembers(cast) {
+            castGrid.innerHTML = '';
+            
+            // Sort by order and take top 10
+            const mainCast = cast.sort((a, b) => a.order - b.order).slice(0, 10);
+            
+            for (const actor of mainCast) {
+                // Create cast member card
+                const castMember = document.createElement('div');
+                castMember.className = 'cast-member';
+                
+                let photoHtml;
+                if (actor.profile_path) {
+                    photoHtml = `<img src="${IMAGE_BASE_URL}w185${actor.profile_path}" alt="${actor.name}" class="cast-photo">`;
+                } else {
+                    photoHtml = `<div class="cast-photo placeholder-image"></div>`;
+                }
+                
+                castMember.innerHTML = `
+                    <div class="cast-header-container">
+                        ${photoHtml}
+                        <div class="cast-info">
+                            <div class="cast-name">${actor.name}</div>
+                            <div class="character-name">as ${actor.character || 'Unknown'}</div>
+                        </div>
+                    </div>
+                    <div class="known-for-container">
+                        <div class="known-for-title">Known For</div>
+                        <div class="known-for-list" id="known-for-${actor.id}">
+                            <div class="loader-spinner" style="width: 20px; height: 20px;"></div>
+                        </div>
+                    </div>
+                `;
+                
+                castGrid.appendChild(castMember);
+                
+                // Load actor's known for credits
+                loadActorCredits(actor.id);
+            }
+        }
+        
+        // Load actor's known for credits
+        async function loadActorCredits(actorId) {
+            try {
+                const response = await fetch(`${BASE_URL}/person/${actorId}/combined_credits`, {
+                    headers: {
+                        'Authorization': `Bearer ${API_KEY}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                const data = await response.json();
+                
+                displayKnownForCredits(actorId, data.cast);
+            } catch (error) {
+                console.error(`Error loading credits for actor ${actorId}:`, error);
+                const knownForElement = document.getElementById(`known-for-${actorId}`);
+                if (knownForElement) {
+                    knownForElement.innerHTML = '<p>Failed to load credits</p>';
+                }
+            }
+        }
+        
+        // Display known for credits
+        function displayKnownForCredits(actorId, credits) {
+            const knownForElement = document.getElementById(`known-for-${actorId}`);
+            
+            if (!knownForElement) return;
+            
+            knownForElement.innerHTML = '';
+            
+            if (!credits || credits.length === 0) {
+                knownForElement.innerHTML = '<p>No known credits</p>';
+                return;
+            }
+            
+            // Sort by popularity and take top 5
+            const topCredits = credits
+                .filter(credit => credit.poster_path) // Only include items with posters
+                .sort((a, b) => b.popularity - a.popularity)
+                .slice(0, 5);
+            
+            if (topCredits.length === 0) {
+                knownForElement.innerHTML = '<p>No known credits with images</p>';
+                return;
+            }
+            
+            topCredits.forEach(credit => {
+                const isMovie = credit.media_type === 'movie';
+                const title = isMovie ? credit.title : credit.name;
+                const releaseDate = isMovie ? credit.release_date : credit.first_air_date;
+                const year = releaseDate ? new Date(releaseDate).getFullYear() : 'Unknown';
+                const mediaType = isMovie ? 'movie' : 'tv';
+                
+                const creditElement = document.createElement('a');
+                creditElement.className = 'known-for-item';
+                creditElement.href = `https://www.themoviedb.org/${mediaType}/${credit.id}`;
+                creditElement.target = '_blank';
+                
+                creditElement.innerHTML = `
+                    <img src="${IMAGE_BASE_URL}w185${credit.poster_path}" alt="${title}" class="known-for-poster">
+                    <div class="known-for-info">
+                        <div class="known-for-name">${title}</div>
+                        <div class="known-for-year">${year} | ${isMovie ? 'Movie' : 'TV'}</div>
+                    </div>
+                `;
+                
+                knownForElement.appendChild(creditElement);
+            });
+        }
+        
+        function showLoader() {
+            loader.style.display = 'block';
+        }
+        
+        function hideLoader() {
+            loader.style.display = 'none';
+        }
+    </script>
+</body>
+</html>
