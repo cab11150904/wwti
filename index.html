@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Wanna Watch Something?</title>
+    <title>Wanna Watch Something</title>
     <style>
         :root {
             --primary-color: #032541;
@@ -239,41 +239,46 @@
         
         .known-for-list {
             display: flex;
+            flex-direction: column;
             gap: 10px;
-            overflow-x: auto;
-            padding-bottom: 10px;
+            max-height: 350px;
+            overflow-y: auto;
+            padding-right: 5px;
         }
         
         .known-for-item {
-            min-width: 120px;
             border-radius: 4px;
             overflow: hidden;
             box-shadow: var(--card-shadow);
             background-color: white;
             text-decoration: none;
             color: var(--text-color);
+            display: flex;
+            align-items: center;
         }
         
         .known-for-poster {
-            width: 100%;
-            height: 180px;
+            width: 60px;
+            height: 90px;
             object-fit: cover;
             background-color: #ddd;
+            flex-shrink: 0;
         }
         
         .known-for-info {
             padding: 8px;
+            flex-grow: 1;
         }
         
         .known-for-name {
             font-size: 0.85rem;
             font-weight: bold;
             margin-bottom: 4px;
-            white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
             display: flex;
             align-items: center;
+            line-height: 1.2;
         }
         
         .known-for-year {
@@ -351,7 +356,7 @@
 </head>
 <body>
     <header>
-        <h1>Wanna Watch Something?</h1>
+        <h1>Wanna Watch Something</h1>
     </header>
     
     <div class="container">
@@ -377,7 +382,11 @@
             <h2>Cast Members</h2>
             <div class="cast-grid" id="cast-grid"></div>
         </div>
-     
+        
+        <div class="attribution">
+            This product uses the TMDB API but is not endorsed or certified by TMDB.
+            <img src="https://www.themoviedb.org/assets/2/v4/logos/v2/blue_short-8e7b30f73a4020692ccca9c88bafe5dcb6f8a62a4c6bc55cd9ba82bb2cd95f6c.svg" alt="TMDB Logo" class="tmdb-logo">
+        </div>
     </div>
     
     <script>
@@ -770,7 +779,7 @@
                     return { ...credit, score };
                 })
                 .sort((a, b) => b.score - a.score)
-                .slice(0, 5);
+                .slice(0, 8);
             
             if (scoredCredits.length === 0) {
                 knownForElement.innerHTML = '<p>No known credits with images</p>';
@@ -803,7 +812,7 @@
                 creditElement.target = '_blank';
                 
                 creditElement.innerHTML = `
-                    <img src="${IMAGE_BASE_URL}w185${credit.poster_path}" alt="${title}" class="known-for-poster">
+                    <img src="${IMAGE_BASE_URL}w92${credit.poster_path}" alt="${title}" class="known-for-poster">
                     <div class="known-for-info">
                         <div class="known-for-name">${title}${verifiedBadge}</div>
                         <div class="known-for-year">${year} | ${isMovie ? 'Movie' : 'TV'}</div>
