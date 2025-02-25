@@ -1,59 +1,9 @@
-// Load cast for a TV show
-        async function loadTVShowCast(tvId, show) {
-            showLoader();
-            
-            try {
-                // Get TV show details including cast
-                const response = await fetch(`${BASE_URL}/tv/${tvId}/credits`, {
-                    headers: {
-                        'Authorization': `Bearer ${API_KEY}`,
-                        'Content-Type': 'application/json'
-                    }
-                });
-                
-                const data = await response.json();
-                
-                // Get additional TV show details
-                const tvDetailsResponse = await fetch(`${BASE_URL}/tv/${tvId}`, {
-                    headers: {
-                        'Authorization': `Bearer ${API_KEY}`,
-                        'Content-Type': 'application/json'
-                    }
-                });
-                
-                const tvDetailsData = await tvDetailsResponse.json();
-                
-                // Format TV show details like movie details for display
-                const formattedDetails = {
-                    ...tvDetailsData,
-                    title: tvDetailsData.name,
-                    release_date: tvDetailsData.first_air_date,
-                    runtime: tvDetailsData.episode_run_time && tvDetailsData.episode_run_time.length > 0 
-                        ? tvDetailsData.episode_run_time[0] 
-                        : null
-                };
-                
-                displayMovieDetails(formattedDetails);
-                displayCastMembers(data.cast);
-                
-                // Switch to cast view
-                searchResults.style.display = 'none';
-                castContainer.style.display = 'block';
-                
-                // Scroll to top
-                window.scrollTo(0, 0);
-            } catch (error) {
-                console.error('Error loading TV show cast:', error);
-                alert('Failed to load cast. Please try again.');
-            } finally {
-                hideLoader();
-            }
-        }<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Movie Cast Explorer</title>
+    <title>Wanna Watch Something?</title>
     <style>
         :root {
             --primary-color: #032541;
@@ -103,7 +53,7 @@
             max-width: 600px;
         }
         
-        #movie-search {
+        #content-search {
             flex-grow: 1;
             padding: 12px 16px;
             font-size: 1rem;
@@ -134,13 +84,13 @@
             margin-bottom: 30px;
         }
         
-        .movie-results {
+        .content-results {
             display: grid;
             grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
             gap: 20px;
         }
         
-        .movie-card {
+        .content-card {
             background-color: var(--card-background);
             border-radius: 8px;
             overflow: hidden;
@@ -149,77 +99,85 @@
             cursor: pointer;
         }
         
-        .movie-card:hover {
+        .content-card:hover {
             transform: translateY(-5px);
         }
         
-        .movie-poster {
+        .content-poster {
             width: 100%;
             height: 300px;
             object-fit: cover;
             background-color: #ddd;
         }
         
-        .movie-info {
+        .content-info {
             padding: 15px;
         }
         
-        .movie-title {
+        .content-title {
             font-weight: bold;
             margin-bottom: 5px;
             font-size: 1rem;
         }
         
-        .movie-year {
+        .content-year {
             color: #666;
             font-size: 0.9rem;
+        }
+        
+        .content-type {
+            display: inline-block;
+            padding: 2px 6px;
+            margin-left: 5px;
+            border-radius: 4px;
+            font-size: 0.8rem;
+            font-weight: normal;
+            color: white;
+        }
+        
+        .type-movie {
+            background-color: #ED4956;
+        }
+        
+        .type-tv {
+            background-color: #4267B2;
         }
         
         #cast-container {
             display: none;
         }
         
-        .cast-header {
-            display: flex;
-            align-items: center;
-            margin-bottom: 20px;
-        }
-        
-        .movie-details {
+        .content-details {
             display: flex;
             gap: 20px;
             margin-bottom: 30px;
         }
         
-        .selected-movie-poster {
+        .selected-content-poster {
             width: 185px;
             border-radius: 8px;
             box-shadow: var(--card-shadow);
         }
         
-        .selected-movie-info {
+        .selected-content-info {
             flex: 1;
         }
         
-        .selected-movie-title {
+        .selected-content-title {
             font-size: 1.8rem;
             margin: 0 0 10px 0;
+            display: flex;
+            align-items: center;
         }
         
-        .selected-movie-year {
+        .selected-content-year {
             color: #666;
             font-size: 1.1rem;
             margin-bottom: 15px;
         }
         
-        .selected-movie-overview {
+        .selected-content-overview {
             line-height: 1.6;
-        }
-        
-        .back-button {
-            margin-right: 15px;
-            background-color: #666;
-            border-radius: 4px;
         }
         
         .cast-grid {
@@ -369,7 +327,7 @@
         }
         
         @media (max-width: 768px) {
-            .movie-details {
+            .content-details {
                 flex-direction: column;
                 align-items: center;
                 text-align: center;
@@ -399,14 +357,14 @@
     <div class="container">
         <div class="search-container">
             <div class="search-box">
-                <input type="text" id="movie-search" placeholder="Search for a movie or TV show...">
+                <input type="text" id="content-search" placeholder="Search for a movie or TV show...">
                 <button class="search-button" id="search-button">Search</button>
             </div>
         </div>
         
         <div id="search-results">
             <h2>Search Results</h2>
-            <div class="movie-results" id="movie-results"></div>
+            <div class="content-results" id="content-results"></div>
         </div>
         
         <div class="loader" id="loader">
@@ -415,15 +373,11 @@
         </div>
         
         <div id="cast-container">
-            <div class="movie-details" id="movie-details"></div>
-            
+            <div class="content-details" id="content-details"></div>
+            <h2>Cast Members</h2>
             <div class="cast-grid" id="cast-grid"></div>
         </div>
-        
-        <div class="attribution">
-            This product uses the TMDB API but is not endorsed or certified by TMDB.
-            <img src="https://www.themoviedb.org/assets/2/v4/logos/v2/blue_short-8e7b30f73a4020692ccca9c88bafe5dcb6f8a62a4c6bc55cd9ba82bb2cd95f6c.svg" alt="TMDB Logo" class="tmdb-logo">
-        </div>
+     
     </div>
     
     <script>
@@ -431,12 +385,12 @@
         const BASE_URL = 'https://api.themoviedb.org/3';
         const IMAGE_BASE_URL = 'https://image.tmdb.org/t/p/';
         
-        const searchInput = document.getElementById('movie-search');
+        const searchInput = document.getElementById('content-search');
         const searchButton = document.getElementById('search-button');
         const searchResults = document.getElementById('search-results');
-        const movieResults = document.getElementById('movie-results');
+        const contentResults = document.getElementById('content-results');
         const castContainer = document.getElementById('cast-container');
-        const movieDetails = document.getElementById('movie-details');
+        const contentDetails = document.getElementById('content-details');
         const castGrid = document.getElementById('cast-grid');
         const loader = document.getElementById('loader');
         
@@ -494,7 +448,7 @@
                 // Sort by popularity
                 combinedResults.sort((a, b) => b.popularity - a.popularity);
                 
-                displayMovieResults(combinedResults);
+                displaySearchResults(combinedResults);
             } catch (error) {
                 console.error('Error searching for content:', error);
                 alert('Failed to search. Please try again.');
@@ -503,12 +457,12 @@
             }
         }
         
-        // Display movie search results
-        function displayMovieResults(items) {
-            movieResults.innerHTML = '';
+        // Display search results
+        function displaySearchResults(items) {
+            contentResults.innerHTML = '';
             
             if (items.length === 0) {
-                movieResults.innerHTML = '<p>No results found. Try a different search term.</p>';
+                contentResults.innerHTML = '<p>No results found. Try a different search term.</p>';
                 return;
             }
             
@@ -518,62 +472,82 @@
                     ? new Date(item.release_date).getFullYear() 
                     : 'Unknown';
                 
-                const movieCard = document.createElement('div');
-                movieCard.className = 'movie-card';
-                movieCard.addEventListener('click', () => {
-                    if (isMovie) {
-                        loadMovieCast(item.id, item);
-                    } else {
-                        loadTVShowCast(item.id, item);
-                    }
+                const contentCard = document.createElement('div');
+                contentCard.className = 'content-card';
+                contentCard.addEventListener('click', () => {
+                    loadContentCast(item.id, item, isMovie ? 'movie' : 'tv');
                 });
                 
                 let posterHtml;
                 if (item.poster_path) {
-                    posterHtml = `<img src="${IMAGE_BASE_URL}w342${item.poster_path}" alt="${item.title}" class="movie-poster">`;
+                    posterHtml = `<img src="${IMAGE_BASE_URL}w342${item.poster_path}" alt="${item.title}" class="content-poster">`;
                 } else {
-                    posterHtml = `<div class="movie-poster placeholder-image">No Poster Available</div>`;
+                    posterHtml = `<div class="content-poster placeholder-image">No Poster Available</div>`;
                 }
                 
-                movieCard.innerHTML = `
+                contentCard.innerHTML = `
                     ${posterHtml}
-                    <div class="movie-info">
-                        <div class="movie-title">${item.title}</div>
-                        <div class="movie-year">${releaseDate} | ${isMovie ? 'Movie' : 'TV Show'}</div>
+                    <div class="content-info">
+                        <div class="content-title">
+                            ${item.title}
+                            <span class="content-type type-${isMovie ? 'movie' : 'tv'}">${isMovie ? 'Movie' : 'TV'}</span>
+                        </div>
+                        <div class="content-year">${releaseDate}</div>
                     </div>
                 `;
                 
-                movieResults.appendChild(movieCard);
+                contentResults.appendChild(contentCard);
             });
         }
         
-        // Load cast for a selected movie
-        async function loadMovieCast(movieId, movie) {
+        // Load cast for movie or TV show
+        async function loadContentCast(contentId, contentData, mediaType) {
             showLoader();
             
             try {
-                // Get movie details including cast
-                const response = await fetch(`${BASE_URL}/movie/${movieId}/credits`, {
+                // Get content credits
+                const creditsEndpoint = mediaType === 'movie' ? 
+                    `${BASE_URL}/movie/${contentId}/credits` : 
+                    `${BASE_URL}/tv/${contentId}/credits`;
+                
+                const creditsResponse = await fetch(creditsEndpoint, {
                     headers: {
                         'Authorization': `Bearer ${API_KEY}`,
                         'Content-Type': 'application/json'
                     }
                 });
                 
-                const data = await response.json();
+                const creditsData = await creditsResponse.json();
                 
-                // Get additional movie details
-                const movieDetailsResponse = await fetch(`${BASE_URL}/movie/${movieId}`, {
+                // Get additional details
+                const detailsEndpoint = mediaType === 'movie' ? 
+                    `${BASE_URL}/movie/${contentId}` : 
+                    `${BASE_URL}/tv/${contentId}`;
+                
+                const detailsResponse = await fetch(detailsEndpoint, {
                     headers: {
                         'Authorization': `Bearer ${API_KEY}`,
                         'Content-Type': 'application/json'
                     }
                 });
                 
-                const movieDetailsData = await movieDetailsResponse.json();
+                const detailsData = await detailsResponse.json();
                 
-                displayMovieDetails(movieDetailsData);
-                displayCastMembers(data.cast);
+                // Normalize data format
+                const formattedDetails = mediaType === 'movie' ? 
+                    { ...detailsData, mediaType: 'movie' } : 
+                    { 
+                        ...detailsData,
+                        mediaType: 'tv',
+                        title: detailsData.name,
+                        release_date: detailsData.first_air_date,
+                        runtime: detailsData.episode_run_time && detailsData.episode_run_time.length > 0 
+                            ? detailsData.episode_run_time[0] 
+                            : null
+                    };
+                
+                displayContentDetails(formattedDetails);
+                displayCastMembers(creditsData.cast);
                 
                 // Switch to cast view
                 searchResults.style.display = 'none';
@@ -582,30 +556,43 @@
                 // Scroll to top
                 window.scrollTo(0, 0);
             } catch (error) {
-                console.error('Error loading movie cast:', error);
-                alert('Failed to load movie cast. Please try again.');
+                console.error(`Error loading ${mediaType} cast:`, error);
+                alert(`Failed to load cast information. Please try again.`);
             } finally {
                 hideLoader();
             }
         }
         
-        // Display selected movie details
-        function displayMovieDetails(movie) {
-            const releaseDate = movie.release_date ? new Date(movie.release_date).getFullYear() : 'Unknown';
+        // Display content details
+        function displayContentDetails(content) {
+            const releaseDate = content.release_date ? new Date(content.release_date).getFullYear() : 'Unknown';
+            const isMovie = content.mediaType === 'movie';
             
-            let posterHtml;
-            if (movie.poster_path) {
-                posterHtml = `<img src="${IMAGE_BASE_URL}w185${movie.poster_path}" alt="${movie.title}" class="selected-movie-poster">`;
-            } else {
-                posterHtml = `<div class="selected-movie-poster placeholder-image">No Poster Available</div>`;
+            let runtimeInfo = '';
+            if (isMovie && content.runtime) {
+                runtimeInfo = `${content.runtime} min`;
+            } else if (!isMovie && content.number_of_seasons) {
+                runtimeInfo = content.number_of_seasons === 1 ? 
+                    '1 Season' : 
+                    `${content.number_of_seasons} Seasons`;
             }
             
-            movieDetails.innerHTML = `
+            let posterHtml;
+            if (content.poster_path) {
+                posterHtml = `<img src="${IMAGE_BASE_URL}w185${content.poster_path}" alt="${content.title}" class="selected-content-poster">`;
+            } else {
+                posterHtml = `<div class="selected-content-poster placeholder-image">No Poster Available</div>`;
+            }
+            
+            contentDetails.innerHTML = `
                 ${posterHtml}
-                <div class="selected-movie-info">
-                    <h3 class="selected-movie-title">${movie.title}</h3>
-                    <div class="selected-movie-year">${releaseDate} | ${movie.runtime ? movie.runtime + ' min' : 'Unknown length'}</div>
-                    <p class="selected-movie-overview">${movie.overview || 'No overview available.'}</p>
+                <div class="selected-content-info">
+                    <h3 class="selected-content-title">
+                        ${content.title}
+                        <span class="content-type type-${isMovie ? 'movie' : 'tv'}">${isMovie ? 'Movie' : 'TV Show'}</span>
+                    </h3>
+                    <div class="selected-content-year">${releaseDate}${runtimeInfo ? ' | ' + runtimeInfo : ''}</div>
+                    <p class="selected-content-overview">${content.overview || 'No overview available.'}</p>
                 </div>
             `;
         }
@@ -733,12 +720,6 @@
             });
             
             // Create a scoring system for credits
-            // Prioritize:
-            // 1. Credits with higher vote counts (more verified by users)
-            // 2. Movies over TV shows (unless TV show is very popular)
-            // 3. Lead roles over supporting roles (check cast position/order)
-            // 4. Recent works over very old ones (but still consider classics)
-            
             const scoredCredits = filteredCredits
                 .filter(credit => credit.poster_path) // Only include items with posters
                 .map(credit => {
