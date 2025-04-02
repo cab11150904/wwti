@@ -497,8 +497,7 @@
         </div>
         
         <div class="attribution">
-            This product uses the TMDB API but is not endorsed or certified by TMDB.
-            <img src="https://www.themoviedb.org/assets/2/v4/logos/v2/blue_short-8e7b30f73a4020692ccca9c88bafe5dcb6f8a62a4c6bc55cd9ba82bb2cd95f6c.svg" alt="TMDB Logo" class="tmdb-logo">
+            <!-- TMDB disclaimer removed as requested -->
         </div>
     </div>
     
@@ -1016,53 +1015,69 @@
             
             // Add streaming (flatrate) providers
             if (regionData.flatrate && regionData.flatrate.length > 0) {
-                html += `
-                    <div class="provider-type">Stream</div>
-                    <div class="watch-providers-list">
-                        ${regionData.flatrate.map(provider => `
-                            <a href="${getProviderUrl(provider)}" target="_blank" class="provider-item" title="Watch on ${provider.provider_name}">
-                                <img src="${IMAGE_BASE_URL}w92${provider.logo_path}" 
-                                     alt="${provider.provider_name}" 
-                                     class="provider-logo">
-                                <div class="provider-name">${provider.provider_name}</div>
-                            </a>
-                        `).join('')}
-                    </div>
-                `;
+                // Filter out Peacock Premium Plus if present
+                const filteredProviders = regionData.flatrate.filter(provider => 
+                    !provider.provider_name.toLowerCase().includes('peacock premium plus'));
+                
+                if (filteredProviders.length > 0) {
+                    html += `
+                        <div class="provider-type">Stream</div>
+                        <div class="watch-providers-list">
+                            ${filteredProviders.map(provider => `
+                                <a href="${getProviderUrl(provider)}" target="_blank" class="provider-item" title="Watch on ${provider.provider_name}">
+                                    <img src="${IMAGE_BASE_URL}w92${provider.logo_path}" 
+                                         alt="${provider.provider_name}" 
+                                         class="provider-logo">
+                                    <div class="provider-name">${provider.provider_name}</div>
+                                </a>
+                            `).join('')}
+                        </div>
+                    `;
+                }
             }
             
             // Add rent providers
             if (regionData.rent && regionData.rent.length > 0) {
-                html += `
-                    <div class="provider-type">Rent</div>
-                    <div class="watch-providers-list">
-                        ${regionData.rent.map(provider => `
-                            <a href="${getProviderUrl(provider)}" target="_blank" class="provider-item" title="Rent on ${provider.provider_name}">
-                                <img src="${IMAGE_BASE_URL}w92${provider.logo_path}" 
-                                     alt="${provider.provider_name}" 
-                                     class="provider-logo">
-                                <div class="provider-name">${provider.provider_name}</div>
-                            </a>
-                        `).join('')}
-                    </div>
-                `;
+                const filteredProviders = regionData.rent.filter(provider => 
+                    !provider.provider_name.toLowerCase().includes('peacock premium plus'));
+                
+                if (filteredProviders.length > 0) {
+                    html += `
+                        <div class="provider-type">Rent</div>
+                        <div class="watch-providers-list">
+                            ${filteredProviders.map(provider => `
+                                <a href="${getProviderUrl(provider)}" target="_blank" class="provider-item" title="Rent on ${provider.provider_name}">
+                                    <img src="${IMAGE_BASE_URL}w92${provider.logo_path}" 
+                                         alt="${provider.provider_name}" 
+                                         class="provider-logo">
+                                    <div class="provider-name">${provider.provider_name}</div>
+                                </a>
+                            `).join('')}
+                        </div>
+                    `;
+                }
             }
             
             // Add buy providers
             if (regionData.buy && regionData.buy.length > 0) {
-                html += `
-                    <div class="provider-type">Buy</div>
-                    <div class="watch-providers-list">
-                        ${regionData.buy.map(provider => `
-                            <a href="${getProviderUrl(provider)}" target="_blank" class="provider-item" title="Buy on ${provider.provider_name}">
-                                <img src="${IMAGE_BASE_URL}w92${provider.logo_path}" 
-                                     alt="${provider.provider_name}" 
-                                     class="provider-logo">
-                                <div class="provider-name">${provider.provider_name}</div>
-                            </a>
-                        `).join('')}
-                    </div>
-                `;
+                const filteredProviders = regionData.buy.filter(provider => 
+                    !provider.provider_name.toLowerCase().includes('peacock premium plus'));
+                
+                if (filteredProviders.length > 0) {
+                    html += `
+                        <div class="provider-type">Buy</div>
+                        <div class="watch-providers-list">
+                            ${filteredProviders.map(provider => `
+                                <a href="${getProviderUrl(provider)}" target="_blank" class="provider-item" title="Buy on ${provider.provider_name}">
+                                    <img src="${IMAGE_BASE_URL}w92${provider.logo_path}" 
+                                         alt="${provider.provider_name}" 
+                                         class="provider-logo">
+                                    <div class="provider-name">${provider.provider_name}</div>
+                                </a>
+                            `).join('')}
+                        </div>
+                    `;
+                }
             }
             
             if (html === '') {
@@ -1081,7 +1096,7 @@
                 337: "https://www.disneyplus.com/", // Disney+
                 2: "https://www.apple.com/apple-tv-plus/", // Apple TV+
                 3: "https://play.google.com/store/movies", // Google Play
-                10: "https://www.amazon.com/Amazon-Video/", // Amazon Video
+                10: "https://www.amazon.com/gp/video/storefront", // Amazon Video
                 15: "https://www.hulu.com/", // Hulu
                 1899: "https://www.max.com/", // Max (formerly HBO Max)
                 531: "https://www.paramountplus.com/", // Paramount+
@@ -1094,7 +1109,7 @@
                 100: "https://www.showtime.com/", // Showtime
                 1797: "https://pluto.tv/", // Pluto TV
                 37: "https://tv.youtube.com/", // YouTube Premium
-                559: "https://www.fubo.tv/", // FuboTV
+                559: "https://fubo.tv/", // FuboTV
                 87: "https://www.criterionchannel.com/", // Criterion Channel
                 232: "https://www.starz.com/", // STARZ
                 190: "https://www.tubitv.com/", // Tubi TV
