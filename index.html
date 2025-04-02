@@ -119,30 +119,6 @@
             position: relative;
         }
         
-        .watch-button {
-            position: absolute;
-            bottom: 10px;
-            right: 10px;
-            background-color: var(--primary-color);
-            color: white;
-            border: none;
-            padding: 6px 12px;
-            border-radius: 4px;
-            font-size: 0.8rem;
-            text-decoration: none;
-            z-index: 10;
-            opacity: 0;
-            transition: opacity 0.2s ease-in-out;
-        }
-        
-        .content-card:hover .watch-button {
-            opacity: 1;
-        }
-        
-        .watch-button:hover {
-            background-color: var(--secondary-color);
-        }
-        
         .content-card:hover {
             transform: translateY(-5px);
         }
@@ -687,11 +663,8 @@
                     posterHtml = `<div class="content-poster placeholder-image">No Poster Available</div>`;
                 }
                 
-                const watchLink = `https://www.themoviedb.org/${isMovie ? 'movie' : 'tv'}/${item.id}/watch`;
-                
                 contentCard.innerHTML = `
                     ${posterHtml}
-                    <a href="${watchLink}" target="_blank" class="watch-button" onclick="event.stopPropagation();">Where to Watch</a>
                     <div class="content-info">
                         <div class="content-title">
                             ${item.title}
@@ -819,11 +792,8 @@
                     loadContentCast(item.id, item, isMovie ? 'movie' : 'tv');
                 });
                 
-                const watchLink = `https://www.themoviedb.org/${isMovie ? 'movie' : 'tv'}/${item.id}/watch`;
-                
                 contentCard.innerHTML = `
                     <img src="${IMAGE_BASE_URL}w342${item.poster_path}" alt="${title}" class="content-poster">
-                    <a href="${watchLink}" target="_blank" class="watch-button" onclick="event.stopPropagation();">Where to Watch</a>
                     <div class="content-info">
                         <div class="content-title">
                             ${title}
