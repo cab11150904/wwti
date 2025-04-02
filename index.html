@@ -1089,6 +1089,11 @@
         
         // Helper function to get provider URL
         function getProviderUrl(provider) {
+            // Special case for Fubo TV - always use fubo.tv
+            if (provider.provider_name.toLowerCase().includes('fubo')) {
+                return "https://fubo.tv/";
+            }
+            
             // Maps provider IDs to their direct URLs
             const providerUrls = {
                 8: "https://www.netflix.com/", // Netflix
