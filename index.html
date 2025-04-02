@@ -225,27 +225,70 @@
             margin-bottom: 20px;
         }
         
-        .justwatch-button {
-            display: inline-block;
-            background-color: var(--secondary-color);
-            color: white;
-            text-decoration: none;
-            padding: 10px 20px;
-            border-radius: 4px;
-            font-weight: bold;
-            font-size: 1rem;
+        .watch-providers-container {
             margin-top: 15px;
-            transition: background-color 0.3s;
+            background-color: #f8f8f8;
+            border-radius: 8px;
+            padding: 15px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
         }
         
-        .justwatch-button:hover {
-            background-color: #018eb6;
+        .watch-providers-title {
+            font-weight: bold;
+            margin-bottom: 10px;
+            font-size: 1rem;
+            display: flex;
+            align-items: center;
         }
         
-        .justwatch-logo {
-            height: 20px;
-            vertical-align: middle;
+        .watch-providers-title svg {
             margin-right: 8px;
+        }
+        
+        .watch-providers-list {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 15px;
+            margin-top: 10px;
+        }
+        
+        .provider-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            width: 60px;
+        }
+        
+        .provider-logo {
+            width: 50px;
+            height: 50px;
+            border-radius: 8px;
+            object-fit: cover;
+            margin-bottom: 5px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        }
+        
+        .provider-name {
+            font-size: 0.7rem;
+            text-align: center;
+            color: #555;
+            word-break: break-word;
+            width: 100%;
+        }
+        
+        .provider-type {
+            font-weight: bold;
+            margin: 10px 0 5px;
+            color: #666;
+            font-size: 0.9rem;
+        }
+        
+        .region-selector {
+            margin-bottom: 10px;
+            padding: 5px 10px;
+            border-radius: 4px;
+            border: 1px solid #ddd;
+            background-color: white;
         }
         
         .cast-grid {
@@ -823,9 +866,23 @@
                 
                 const detailsData = await detailsResponse.json();
                 
+                // Get watch providers
+                const providersEndpoint = mediaType === 'movie' ? 
+                    `${BASE_URL}/movie/${contentId}/watch/providers` : 
+                    `${BASE_URL}/tv/${contentId}/watch/providers`;
+                
+                const providersResponse = await fetch(providersEndpoint, {
+                    headers: {
+                        'Authorization': `Bearer ${API_KEY}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                const providersData = await providersResponse.json();
+                
                 // Normalize data format
                 const formattedDetails = mediaType === 'movie' ? 
-                    { ...detailsData, mediaType: 'movie' } : 
+                    { ...detailsData, mediaType: 'movie', watchProviders: providersData.results } : 
                     { 
                         ...detailsData,
                         mediaType: 'tv',
@@ -833,7 +890,8 @@
                         release_date: detailsData.first_air_date,
                         runtime: detailsData.episode_run_time && detailsData.episode_run_time.length > 0 
                             ? detailsData.episode_run_time[0] 
-                            : null
+                            : null,
+                        watchProviders: providersData.results
                     };
                 
                 displayContentDetails(formattedDetails);
@@ -875,10 +933,8 @@
                 posterHtml = `<div class="selected-content-poster placeholder-image">No Poster Available</div>`;
             }
             
-            // Create JustWatch button URL
-            const justwatchUrl = `https://www.themoviedb.org/${isMovie ? 'movie' : 'tv'}/${content.id}/watch`;
-            
-            contentDetails.innerHTML = `
+            // Base HTML for content details
+            let contentHtml = `
                 ${posterHtml}
                 <div class="selected-content-info">
                     <h3 class="selected-content-title">
@@ -887,14 +943,169 @@
                     </h3>
                     <div class="selected-content-year">${releaseDate}${runtimeInfo ? ' | ' + runtimeInfo : ''}</div>
                     <p class="selected-content-overview">${content.overview || 'No overview available.'}</p>
-                    <a href="${justwatchUrl}" target="_blank" class="justwatch-button">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="white" class="justwatch-logo">
-                            <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z" transform="rotate(45) translate(0, -4)" />
+            `;
+            
+            // Add watch providers section
+            contentHtml += getWatchProvidersHtml(content.watchProviders);
+            contentHtml += `</div>`;
+            
+            contentDetails.innerHTML = contentHtml;
+            
+            // Set up region selector event if it exists
+            const regionSelector = document.getElementById('region-selector');
+            if (regionSelector) {
+                regionSelector.addEventListener('change', () => {
+                    const selectedRegion = regionSelector.value;
+                    const watchProvidersContainer = document.getElementById('watch-providers-container');
+                    if (watchProvidersContainer) {
+                        watchProvidersContainer.innerHTML = getWatchProvidersContentHtml(content.watchProviders, selectedRegion);
+                    }
+                });
+            }
+        }
+        
+        // Generate HTML for watch providers section
+        function getWatchProvidersHtml(watchProviders) {
+            if (!watchProviders || Object.keys(watchProviders).length === 0) {
+                return `
+                    <div class="watch-providers-container">
+                        <div class="watch-providers-title">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="#01b4e4">
+                                <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm-1-13h2v6h-2zm0 8h2v2h-2z"/>
+                            </svg>
+                            Where to Watch
+                        </div>
+                        <p>No streaming information available for this title.</p>
+                    </div>
+                `;
+            }
+            
+            // Get available regions
+            const regions = Object.keys(watchProviders);
+            
+            // Default to US if available, otherwise use first available region
+            let defaultRegion = regions.includes('US') ? 'US' : regions[0];
+            
+            // Generate region selector
+            let regionSelectorHtml = '';
+            if (regions.length > 1) {
+                regionSelectorHtml = `
+                    <select id="region-selector" class="region-selector">
+                        ${regions.map(region => `
+                            <option value="${region}" ${region === defaultRegion ? 'selected' : ''}>
+                                ${getCountryName(region)}
+                            </option>
+                        `).join('')}
+                    </select>
+                `;
+            }
+            
+            return `
+                <div class="watch-providers-container">
+                    <div class="watch-providers-title">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="#01b4e4">
+                            <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm-.5-4.5l6-4.5-6-4.5v9z"/>
                         </svg>
                         Where to Watch
-                    </a>
+                    </div>
+                    ${regionSelectorHtml}
+                    <div id="watch-providers-container">
+                        ${getWatchProvidersContentHtml(watchProviders, defaultRegion)}
+                    </div>
                 </div>
             `;
+        }
+        
+        // Generate HTML for watch providers content
+        function getWatchProvidersContentHtml(watchProviders, region) {
+            if (!watchProviders || !watchProviders[region]) {
+                return '<p>No streaming information available for this region.</p>';
+            }
+            
+            const regionData = watchProviders[region];
+            let html = '';
+            
+            // Add streaming (flatrate) providers
+            if (regionData.flatrate && regionData.flatrate.length > 0) {
+                html += `
+                    <div class="provider-type">Stream</div>
+                    <div class="watch-providers-list">
+                        ${regionData.flatrate.map(provider => `
+                            <div class="provider-item">
+                                <img src="${IMAGE_BASE_URL}w92${provider.logo_path}" 
+                                     alt="${provider.provider_name}" 
+                                     class="provider-logo">
+                                <div class="provider-name">${provider.provider_name}</div>
+                            </div>
+                        `).join('')}
+                    </div>
+                `;
+            }
+            
+            // Add rent providers
+            if (regionData.rent && regionData.rent.length > 0) {
+                html += `
+                    <div class="provider-type">Rent</div>
+                    <div class="watch-providers-list">
+                        ${regionData.rent.map(provider => `
+                            <div class="provider-item">
+                                <img src="${IMAGE_BASE_URL}w92${provider.logo_path}" 
+                                     alt="${provider.provider_name}" 
+                                     class="provider-logo">
+                                <div class="provider-name">${provider.provider_name}</div>
+                            </div>
+                        `).join('')}
+                    </div>
+                `;
+            }
+            
+            // Add buy providers
+            if (regionData.buy && regionData.buy.length > 0) {
+                html += `
+                    <div class="provider-type">Buy</div>
+                    <div class="watch-providers-list">
+                        ${regionData.buy.map(provider => `
+                            <div class="provider-item">
+                                <img src="${IMAGE_BASE_URL}w92${provider.logo_path}" 
+                                     alt="${provider.provider_name}" 
+                                     class="provider-logo">
+                                <div class="provider-name">${provider.provider_name}</div>
+                            </div>
+                        `).join('')}
+                    </div>
+                `;
+            }
+            
+            if (html === '') {
+                return '<p>No streaming information available for this region.</p>';
+            }
+            
+            return html;
+        }
+        
+        // Helper function to get country name from region code
+        function getCountryName(regionCode) {
+            const countryNames = {
+                'US': 'United States',
+                'CA': 'Canada',
+                'GB': 'United Kingdom',
+                'FR': 'France',
+                'DE': 'Germany',
+                'AU': 'Australia',
+                'ES': 'Spain',
+                'IT': 'Italy',
+                'JP': 'Japan',
+                'BR': 'Brazil',
+                'MX': 'Mexico',
+                'IN': 'India',
+                'KR': 'South Korea',
+                'RU': 'Russia',
+                'NL': 'Netherlands',
+                'SE': 'Sweden'
+                // Add more as needed
+            };
+            
+            return countryNames[regionCode] || regionCode;
         }
         
         // Display cast members
