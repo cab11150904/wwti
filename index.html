@@ -1013,6 +1013,18 @@
                 `;
             }
             
+            // Helper function to get provider logo
+            function getProviderLogo(provider) {
+                // Special cases for specific providers
+                if (provider.provider_name.toLowerCase().includes('fubo')) {
+                    return 'https://images.justwatch.com/icon/207468084/s100/fubo.png';
+                } else if (provider.provider_name.toLowerCase().includes('apple tv')) {
+                    return 'https://images.justwatch.com/icon/190848813/s100/appletv.png';
+                } else {
+                    return `${IMAGE_BASE_URL}w92${provider.logo_path}`;
+                }
+            }
+            
             // Add streaming (flatrate) providers
             if (regionData.flatrate && regionData.flatrate.length > 0) {
                 // Filter out Peacock Premium Plus if present
@@ -1025,7 +1037,7 @@
                         <div class="watch-providers-list">
                             ${filteredProviders.map(provider => `
                                 <a href="${getProviderUrl(provider)}" target="_blank" class="provider-item" title="Watch on ${provider.provider_name}">
-                                    <img src="${IMAGE_BASE_URL}w92${provider.logo_path}" 
+                                    <img src="${getProviderLogo(provider)}" 
                                          alt="${provider.provider_name}" 
                                          class="provider-logo">
                                     <div class="provider-name">${provider.provider_name}</div>
@@ -1047,7 +1059,7 @@
                         <div class="watch-providers-list">
                             ${filteredProviders.map(provider => `
                                 <a href="${getProviderUrl(provider)}" target="_blank" class="provider-item" title="Rent on ${provider.provider_name}">
-                                    <img src="${IMAGE_BASE_URL}w92${provider.logo_path}" 
+                                    <img src="${getProviderLogo(provider)}" 
                                          alt="${provider.provider_name}" 
                                          class="provider-logo">
                                     <div class="provider-name">${provider.provider_name}</div>
@@ -1069,7 +1081,7 @@
                         <div class="watch-providers-list">
                             ${filteredProviders.map(provider => `
                                 <a href="${getProviderUrl(provider)}" target="_blank" class="provider-item" title="Buy on ${provider.provider_name}">
-                                    <img src="${IMAGE_BASE_URL}w92${provider.logo_path}" 
+                                    <img src="${getProviderLogo(provider)}" 
                                          alt="${provider.provider_name}" 
                                          class="provider-logo">
                                     <div class="provider-name">${provider.provider_name}</div>
