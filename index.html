@@ -257,6 +257,13 @@
             flex-direction: column;
             align-items: center;
             width: 60px;
+            text-decoration: none;
+            color: inherit;
+            transition: transform 0.2s;
+        }
+        
+        .provider-item:hover {
+            transform: translateY(-3px);
         }
         
         .provider-logo {
@@ -1025,18 +1032,30 @@
             const regionData = watchProviders[region];
             let html = '';
             
+            // Link to JustWatch page
+            let justWatchLink = '';
+            if (regionData.link) {
+                justWatchLink = `
+                    <div style="margin-top: 15px; font-size: 0.8rem;">
+                        <a href="${regionData.link}" target="_blank" style="color: var(--secondary-color); text-decoration: none;">
+                            View all options on JustWatch
+                        </a>
+                    </div>
+                `;
+            }
+            
             // Add streaming (flatrate) providers
             if (regionData.flatrate && regionData.flatrate.length > 0) {
                 html += `
                     <div class="provider-type">Stream</div>
                     <div class="watch-providers-list">
                         ${regionData.flatrate.map(provider => `
-                            <div class="provider-item">
+                            <a href="${getProviderUrl(provider)}" target="_blank" class="provider-item" title="Watch on ${provider.provider_name}">
                                 <img src="${IMAGE_BASE_URL}w92${provider.logo_path}" 
                                      alt="${provider.provider_name}" 
                                      class="provider-logo">
                                 <div class="provider-name">${provider.provider_name}</div>
-                            </div>
+                            </a>
                         `).join('')}
                     </div>
                 `;
@@ -1048,12 +1067,12 @@
                     <div class="provider-type">Rent</div>
                     <div class="watch-providers-list">
                         ${regionData.rent.map(provider => `
-                            <div class="provider-item">
+                            <a href="${getProviderUrl(provider)}" target="_blank" class="provider-item" title="Rent on ${provider.provider_name}">
                                 <img src="${IMAGE_BASE_URL}w92${provider.logo_path}" 
                                      alt="${provider.provider_name}" 
                                      class="provider-logo">
                                 <div class="provider-name">${provider.provider_name}</div>
-                            </div>
+                            </a>
                         `).join('')}
                     </div>
                 `;
@@ -1065,12 +1084,12 @@
                     <div class="provider-type">Buy</div>
                     <div class="watch-providers-list">
                         ${regionData.buy.map(provider => `
-                            <div class="provider-item">
+                            <a href="${getProviderUrl(provider)}" target="_blank" class="provider-item" title="Buy on ${provider.provider_name}">
                                 <img src="${IMAGE_BASE_URL}w92${provider.logo_path}" 
                                      alt="${provider.provider_name}" 
                                      class="provider-logo">
                                 <div class="provider-name">${provider.provider_name}</div>
-                            </div>
+                            </a>
                         `).join('')}
                     </div>
                 `;
@@ -1080,7 +1099,51 @@
                 return '<p>No streaming information available for this region.</p>';
             }
             
-            return html;
+            return html + justWatchLink;
+        }
+        
+        // Helper function to get provider URL
+        function getProviderUrl(provider) {
+            // Maps provider IDs to their direct URLs
+            const providerUrls = {
+                8: "https://www.netflix.com/", // Netflix
+                9: "https://www.primevideo.com/", // Amazon Prime
+                337: "https://www.disneyplus.com/", // Disney+
+                2: "https://www.apple.com/apple-tv-plus/", // Apple TV+
+                3: "https://play.google.com/store/movies", // Google Play
+                10: "https://www.amazon.com/Amazon-Video/", // Amazon Video
+                15: "https://www.hulu.com/", // Hulu
+                1899: "https://www.max.com/", // Max (formerly HBO Max)
+                531: "https://www.paramountplus.com/", // Paramount+
+                386: "https://www.peacocktv.com/", // Peacock
+                11: "https://www.microsoft.com/en-us/store/movies-and-tv", // Microsoft Store
+                7: "https://www.vudu.com/", // Vudu
+                350: "https://www.appletv.com/", // Apple TV
+                283: "https://www.crunchyroll.com/", // Crunchyroll
+                192: "https://www.youtube.com/", // YouTube
+                100: "https://www.showtime.com/", // Showtime
+                1797: "https://pluto.tv/", // Pluto TV
+                37: "https://tv.youtube.com/", // YouTube Premium
+                559: "https://www.fubo.tv/", // FuboTV
+                87: "https://www.criterionchannel.com/", // Criterion Channel
+                232: "https://www.starz.com/", // STARZ
+                190: "https://www.tubitv.com/", // Tubi TV
+                2554: "https://www.amcplus.com/", // AMC+
+                1875: "https://www.discoveryplus.com/", // Discovery+
+                444: "https://www.directv.com/", // DIRECTV
+                369: "https://www.pbs.org/pbs-video-app/", // PBS
+                371: "https://www.sho.com/", // Showtime Now
+                562: "https://www.mubi.com/" // MUBI
+                // Add more providers as needed
+            };
+
+            // If we have a URL for this provider, use it, otherwise default to JustWatch
+            if (providerUrls[provider.provider_id]) {
+                return providerUrls[provider.provider_id];
+            } else {
+                // Default to JustWatch's main page as fallback
+                return "https://www.justwatch.com/";
+            }
         }
         
         // Helper function to get country name from region code
